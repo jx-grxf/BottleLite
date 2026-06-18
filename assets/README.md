@@ -1,5 +1,12 @@
 # Assets
 
+## `bottlelite_logo.png` and `BottleLite.icns`
+
+Current BottleLite app icon source and generated macOS icon file.
+
+Use `bottlelite_logo.png` as the source image for Apple Icon Composer or for
+regenerating the `.icns` file.
+
 ## `bottle-wine-lucide.svg`
 
 Source: [Lucide `bottle-wine`](https://lucide.dev/icons/bottle-wine)
