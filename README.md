@@ -4,8 +4,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/johannesgrof/BottleLite/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/johannesgrof/BottleLite/ci.yml?branch=main&style=flat-square&label=CI"></a>
-  <a href="https://github.com/johannesgrof/BottleLite/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/github/license/johannesgrof/BottleLite?style=flat-square"></a>
+  <a href="https://github.com/jx-grxf/BottleLite/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/jx-grxf/BottleLite/ci.yml?branch=main&style=flat-square&label=CI"></a>
+  <a href="https://github.com/jx-grxf/BottleLite/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/github/license/jx-grxf/BottleLite?style=flat-square"></a>
   <img alt="Platform" src="https://img.shields.io/badge/platform-macOS%2014%2B-111827?style=flat-square&logo=apple">
   <img alt="Swift" src="https://img.shields.io/badge/Swift-6.0-F05138?style=flat-square&logo=swift&logoColor=white">
   <img alt="Native" src="https://img.shields.io/badge/native-SwiftUI-0A84FF?style=flat-square">
@@ -67,7 +67,7 @@ brew install --cask wine-stable
 ## Build
 
 ```bash
-git clone https://github.com/johannesgrof/BottleLite.git
+git clone https://github.com/jx-grxf/BottleLite.git
 cd BottleLite
 make build
 make test
