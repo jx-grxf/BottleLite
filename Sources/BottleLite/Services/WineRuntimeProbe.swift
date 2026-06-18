@@ -16,7 +16,9 @@ struct WineRuntimeProbe: WineRuntimeProbing {
             "/opt/homebrew/bin/wine64",
             "/opt/homebrew/bin/wine",
             "/usr/local/bin/wine64",
-            "/usr/local/bin/wine"
+            "/usr/local/bin/wine",
+            "/Applications/Wine Stable.app/Contents/Resources/wine/bin/wine64",
+            "/Applications/Wine Stable.app/Contents/Resources/wine/bin/wine"
         ]
 
         if let path = candidates.first(where: fileManager.isExecutableFile(atPath:)) {

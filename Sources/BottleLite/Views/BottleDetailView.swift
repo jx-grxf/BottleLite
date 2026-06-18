@@ -47,7 +47,7 @@ private struct HeaderView: View {
             RuntimeStatusView(status: store.runtimeStatus)
 
             if store.runtimeStatus.state == .missing {
-                if store.wineInstallState.isBusy {
+                if store.wineInstallState == .installing {
                     ProgressView()
                         .controlSize(.small)
                         .progressViewStyle(.circular)

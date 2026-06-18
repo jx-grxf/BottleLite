@@ -30,9 +30,14 @@ struct HomebrewWineInstaller: WineInstalling, Sendable {
                 throw WineInstallError.homebrewMissing
             }
 
-            let command = """
+            let scriptURL = FileManager.default.temporaryDirectory
+                .appending(path: "BottleLite-Wine-Installer-\(UUID().uuidString).command")
+
+            let script = """
+            #!/bin/zsh
             clear
             echo "BottleLite Wine installer"
+            echo "Type y if Homebrew asks to proceed."
             echo "This may ask for your macOS password because Wine depends on system packages."
             echo
             \(shellEscaped(brewPath)) install --cask wine-stable
@@ -47,17 +52,15 @@ struct HomebrewWineInstaller: WineInstalling, Sendable {
             read -n 1 -s -r -p "Press any key to close this window..."
             """
 
+            try script.write(to: scriptURL, atomically: true, encoding: .utf8)
+            try FileManager.default.setAttributes(
+                [.posixPermissions: 0o700],
+                ofItemAtPath: scriptURL.path
+            )
+
             let process = Process()
-            process.executableURL = URL(filePath: "/usr/bin/osascript")
-            process.arguments = [
-                "-e",
-                """
-                tell application "Terminal"
-                  activate
-                  do script \(appleScriptQuoted(command))
-                end tell
-                """
-            ]
+            process.executableURL = URL(filePath: "/usr/bin/open")
+            process.arguments = [scriptURL.path]
 
             try process.run()
             process.waitUntilExit()
@@ -71,12 +74,4 @@ struct HomebrewWineInstaller: WineInstalling, Sendable {
 
 private func shellEscaped(_ value: String) -> String {
     "'\(value.replacingOccurrences(of: "'", with: "'\\''"))'"
-}
-
-private func appleScriptQuoted(_ value: String) -> String {
-    let escaped = value
-        .replacingOccurrences(of: "\\", with: "\\\\")
-        .replacingOccurrences(of: "\"", with: "\\\"")
-        .replacingOccurrences(of: "\n", with: "\\n")
-    return "\"\(escaped)\""
 }
