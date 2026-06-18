@@ -40,6 +40,10 @@ final class BottleStore: ObservableObject {
 
     func refreshRuntime() {
         runtimeStatus = runtimeProbe.detectRuntime()
+        if runtimeStatus.state == .ready, wineInstallState.isBusy {
+            wineInstallState = .idle
+            lastMessage = "Wine runtime detected."
+        }
     }
 
     func createBottle(named name: String = "New Bottle") {
@@ -118,21 +122,30 @@ final class BottleStore: ObservableObject {
     }
 
     func installWine() async {
-        guard wineInstallState != .installing else { return }
+        guard !wineInstallState.isBusy else { return }
 
         wineInstallState = .installing
-        lastMessage = "Installing Wine with Homebrew..."
+        lastMessage = "Opening Wine installer in Terminal..."
 
         do {
-            try await wineInstaller.installWine()
-            wineInstallState = .idle
-            refreshRuntime()
-            lastMessage = runtimeStatus.state == .ready
-                ? "Wine installed."
-                : "Wine install finished, but no runtime was detected."
+            try await wineInstaller.openInstaller()
+            wineInstallState = .waitingForTerminal
+            lastMessage = "Finish the Terminal installer, then click Check Again."
         } catch {
             wineInstallState = .failed(error.localizedDescription)
             lastMessage = "Wine install failed: \(error.localizedDescription)"
+        }
+    }
+
+    func checkWineInstall() {
+        refreshRuntime()
+
+        if runtimeStatus.state == .ready {
+            wineInstallState = .idle
+            lastMessage = "Wine runtime detected."
+        } else {
+            wineInstallState = .failed("Wine is still missing. Finish the Terminal installer, then check again.")
+            lastMessage = "Wine is still missing."
         }
     }
 

@@ -47,10 +47,20 @@ private struct HeaderView: View {
             RuntimeStatusView(status: store.runtimeStatus)
 
             if store.runtimeStatus.state == .missing {
+                if store.wineInstallState.isBusy {
+                    ProgressView()
+                        .controlSize(.small)
+                        .progressViewStyle(.circular)
+                }
+
                 Button {
-                    store.promptWineInstall()
+                    if store.wineInstallState == .waitingForTerminal {
+                        store.checkWineInstall()
+                    } else {
+                        store.promptWineInstall()
+                    }
                 } label: {
-                    Label("Install Wine", systemImage: "arrow.down.circle")
+                    Label(buttonTitle, systemImage: buttonIcon)
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
@@ -74,9 +84,19 @@ private struct HeaderView: View {
         case .idle:
             store.lastMessage
         case .installing:
-            "Installing Wine..."
+            "Opening Terminal installer..."
+        case .waitingForTerminal:
+            "Finish Wine install in Terminal, then check again."
         case let .failed(error):
             error
         }
+    }
+
+    private var buttonTitle: String {
+        store.wineInstallState == .waitingForTerminal ? "Check Again" : "Install Wine"
+    }
+
+    private var buttonIcon: String {
+        store.wineInstallState == .waitingForTerminal ? "checkmark.circle" : "terminal"
     }
 }

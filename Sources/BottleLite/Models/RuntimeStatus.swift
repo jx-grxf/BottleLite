@@ -21,5 +21,15 @@ enum RuntimeState: Equatable {
 enum WineInstallState: Equatable {
     case idle
     case installing
+    case waitingForTerminal
     case failed(String)
+
+    var isBusy: Bool {
+        switch self {
+        case .installing, .waitingForTerminal:
+            true
+        case .idle, .failed:
+            false
+        }
+    }
 }

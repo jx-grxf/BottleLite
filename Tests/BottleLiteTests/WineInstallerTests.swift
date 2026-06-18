@@ -6,7 +6,7 @@ struct WineInstallerTests {
         #expect(WineInstallError.homebrewMissing.localizedDescription == "Homebrew is not installed.")
     }
 
-    @Test func failedInstallErrorIncludesStatus() {
-        #expect(WineInstallError.installationFailed(7).localizedDescription == "Homebrew exited with code 7.")
+    @Test func terminalOpenErrorIsReadable() {
+        #expect(WineInstallError.terminalOpenFailed.localizedDescription == "Could not open Terminal.")
     }
 }
