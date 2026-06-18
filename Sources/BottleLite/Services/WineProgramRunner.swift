@@ -8,6 +8,8 @@ protocol ProgramRunning {
         winePath: String,
         terminationHandler: @escaping @Sendable (ProgramTermination) -> Void
     ) throws -> ProgramLaunch
+
+    func stop(_ launch: ProgramLaunch) throws
 }
 
 struct ProgramLaunch: Equatable {
@@ -52,6 +54,13 @@ struct WineProgramRunner: ProgramRunning {
 
         try process.run()
         return ProgramLaunch(processID: process.processIdentifier)
+    }
+
+    func stop(_ launch: ProgramLaunch) throws {
+        let process = Process()
+        process.executableURL = URL(filePath: "/bin/kill")
+        process.arguments = ["-TERM", "\(launch.processID)"]
+        try process.run()
     }
 
     private func ensurePrefixDirectory(for bottle: Bottle) throws -> URL {

@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 
 @MainActor
@@ -9,7 +10,7 @@ final class BottleStore: ObservableObject {
     @Published var isWineInstallPromptPresented = false
     @Published var wineInstallState: WineInstallState = .idle
     @Published var lastMessage = "Drop an .exe to begin."
-    @Published private(set) var runningProgramIDs: Set<WindowsProgram.ID> = []
+    @Published private(set) var runningPrograms: [WindowsProgram.ID: ProgramLaunch] = [:]
 
     private let runtimeProbe: WineRuntimeProbing
     private let programRunner: ProgramRunning
@@ -92,8 +93,6 @@ final class BottleStore: ObservableObject {
             return
         }
 
-        runningProgramIDs.insert(program.id)
-
         do {
             let launch = try programRunner.launch(
                 program: program,
@@ -101,20 +100,60 @@ final class BottleStore: ObservableObject {
                 winePath: winePath
             ) { [weak self] termination in
                 Task { @MainActor in
-                    self?.runningProgramIDs.remove(program.id)
+                    self?.runningPrograms.removeValue(forKey: program.id)
                     self?.lastMessage = termination.message(for: program.name)
                 }
             }
 
+            runningPrograms[program.id] = launch
             lastMessage = "Started \(program.name) with pid \(launch.processID)."
         } catch {
-            runningProgramIDs.remove(program.id)
+            runningPrograms.removeValue(forKey: program.id)
             lastMessage = "Could not start \(program.name): \(error.localizedDescription)"
         }
     }
 
+    func stop(_ program: WindowsProgram) {
+        guard let launch = runningPrograms[program.id] else {
+            lastMessage = "\(program.name) is not running."
+            return
+        }
+
+        do {
+            try programRunner.stop(launch)
+            runningPrograms.removeValue(forKey: program.id)
+            lastMessage = "Stopped \(program.name)."
+        } catch {
+            lastMessage = "Could not stop \(program.name): \(error.localizedDescription)"
+        }
+    }
+
     func isRunning(_ program: WindowsProgram) -> Bool {
-        runningProgramIDs.contains(program.id)
+        runningPrograms[program.id] != nil
+    }
+
+    func remove(_ program: WindowsProgram, from bottle: Bottle) {
+        if isRunning(program) {
+            stop(program)
+        }
+
+        guard let bottleIndex = bottles.firstIndex(where: { $0.id == bottle.id }) else {
+            return
+        }
+
+        bottles[bottleIndex].programs.removeAll { $0.id == program.id }
+        lastMessage = "Removed \(program.name) from \(bottle.name)."
+    }
+
+    func revealInFinder(_ program: WindowsProgram) {
+        NSWorkspace.shared.activateFileViewerSelecting([URL(filePath: program.path)])
+        lastMessage = "Revealed \(program.name) in Finder."
+    }
+
+    func copyPath(_ program: WindowsProgram) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(program.path, forType: .string)
+        lastMessage = "Copied \(program.name) path."
     }
 
     func promptWineInstall() {
