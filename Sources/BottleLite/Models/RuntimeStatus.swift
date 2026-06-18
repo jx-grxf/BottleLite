@@ -17,3 +17,9 @@ enum RuntimeState: Equatable {
     case missing
     case unknown
 }
+
+enum WineInstallState: Equatable {
+    case idle
+    case installing
+    case failed(String)
+}

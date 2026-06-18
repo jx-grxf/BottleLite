@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ProgramListView: View {
     let bottle: Bottle
+    @ObservedObject var store: BottleStore
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -13,7 +14,13 @@ struct ProgramListView: View {
             } else {
                 VStack(spacing: 8) {
                     ForEach(bottle.programs) { program in
-                        ProgramRowView(program: program)
+                        ProgramRowView(
+                            program: program,
+                            isRunning: store.isRunning(program),
+                            canRun: store.runtimeStatus.state == .ready && program.validation == .valid
+                        ) {
+                            store.run(program, in: bottle)
+                        }
                     }
                 }
             }
@@ -34,6 +41,9 @@ private struct EmptyProgramsView: View {
 
 private struct ProgramRowView: View {
     let program: WindowsProgram
+    let isRunning: Bool
+    let canRun: Bool
+    let run: () -> Void
 
     var body: some View {
         HStack(spacing: 12) {
@@ -52,6 +62,17 @@ private struct ProgramRowView: View {
             }
 
             Spacer()
+
+            Button {
+                run()
+            } label: {
+                Label(isRunning ? "Running" : "Run", systemImage: isRunning ? "hourglass" : "play.fill")
+                    .labelStyle(.titleAndIcon)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .disabled(!canRun || isRunning)
+            .help(canRun ? "Run with Wine" : "Install Wine before running this program")
 
             Text(program.validation.label)
                 .font(.caption.weight(.medium))

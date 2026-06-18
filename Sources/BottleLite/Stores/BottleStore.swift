@@ -6,12 +6,23 @@ final class BottleStore: ObservableObject {
     @Published var selection: Bottle.ID?
     @Published var runtimeStatus: RuntimeStatus = .unknown
     @Published var isImporterPresented = false
+    @Published var isWineInstallPromptPresented = false
+    @Published var wineInstallState: WineInstallState = .idle
     @Published var lastMessage = "Drop an .exe to begin."
+    @Published private(set) var runningProgramIDs: Set<WindowsProgram.ID> = []
 
     private let runtimeProbe: WineRuntimeProbing
+    private let programRunner: ProgramRunning
+    private let wineInstaller: WineInstalling
 
-    init(runtimeProbe: WineRuntimeProbing = WineRuntimeProbe()) {
+    init(
+        runtimeProbe: WineRuntimeProbing = WineRuntimeProbe(),
+        programRunner: ProgramRunning = WineProgramRunner(),
+        wineInstaller: WineInstalling = HomebrewWineInstaller()
+    ) {
         self.runtimeProbe = runtimeProbe
+        self.programRunner = programRunner
+        self.wineInstaller = wineInstaller
         self.bottles = [
             Bottle(
                 name: "Default Bottle",
@@ -61,6 +72,68 @@ final class BottleStore: ObservableObject {
         lastMessage = validation == .valid
             ? "Imported \(program.name)."
             : "\(program.name): \(validation.label)."
+    }
+
+    func run(_ program: WindowsProgram, in bottle: Bottle) {
+        guard program.validation == .valid else {
+            lastMessage = "\(program.name) is not a valid Windows executable."
+            return
+        }
+
+        refreshRuntime()
+
+        guard let winePath = runtimeStatus.winePath else {
+            lastMessage = "Install Wine first, then try \(program.name) again."
+            isWineInstallPromptPresented = true
+            return
+        }
+
+        runningProgramIDs.insert(program.id)
+
+        do {
+            let launch = try programRunner.launch(
+                program: program,
+                bottle: bottle,
+                winePath: winePath
+            ) { [weak self] termination in
+                Task { @MainActor in
+                    self?.runningProgramIDs.remove(program.id)
+                    self?.lastMessage = termination.message(for: program.name)
+                }
+            }
+
+            lastMessage = "Started \(program.name) with pid \(launch.processID)."
+        } catch {
+            runningProgramIDs.remove(program.id)
+            lastMessage = "Could not start \(program.name): \(error.localizedDescription)"
+        }
+    }
+
+    func isRunning(_ program: WindowsProgram) -> Bool {
+        runningProgramIDs.contains(program.id)
+    }
+
+    func promptWineInstall() {
+        isWineInstallPromptPresented = true
+    }
+
+    func installWine() async {
+        guard wineInstallState != .installing else { return }
+
+        wineInstallState = .installing
+        lastMessage = "Installing Wine with Homebrew..."
+
+        do {
+            try await wineInstaller.installWine()
+            wineInstallState = .idle
+            refreshRuntime()
+            lastMessage = runtimeStatus.state == .ready
+                ? "Wine installed."
+                : "Wine install finished, but no runtime was detected."
+        } catch {
+            wineInstallState = .failed(error.localizedDescription)
+            lastMessage = "Wine install failed: \(error.localizedDescription)"
+        }
     }
 
     private func nextAvailableName(base: String) -> String {
