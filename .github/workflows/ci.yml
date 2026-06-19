@@ -138,9 +138,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
+      - name: Install packaging tools
+        run: brew install create-dmg
+
       - name: Build release DMG
         env:
           BOTTLELITE_BUILD: ${{ github.run_number }}
+          BOTTLELITE_REQUIRE_STYLED_DMG: "true"
         run: ./script/package_dmg.sh
 
       - name: Verify bundle and DMG metadata

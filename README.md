@@ -117,6 +117,9 @@ make icons      # regenerate the app icon set from assets/bottlelite_icon.svg
 make package    # build dist/BottleLite-<version>.dmg
 ```
 
+Install `create-dmg` (`brew install create-dmg`) before packaging if you want
+the same styled drag-to-Applications layout used by CI and releases.
+
 ## Repository layout
 
 ```text

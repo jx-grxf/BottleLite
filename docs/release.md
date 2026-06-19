@@ -33,7 +33,7 @@ Stable appcast items do not carry a Sparkle channel tag. Beta items carry `spark
    git tag -s v0.1.0 -m "BottleLite 0.1.0"
    git push origin v0.1.0
    ```
-5. The release workflow verifies the signed tag, tests the tagged source, builds the DMG, signs the Sparkle ZIP/appcast, optionally notarizes, publishes GitHub Release assets, and verifies the published release.
+5. The release workflow verifies the signed tag, tests the tagged source, builds a styled `create-dmg` drag-install DMG, signs the Sparkle ZIP/appcast, optionally notarizes, publishes GitHub Release assets, and verifies the published release.
 
 ## Rollback
 
