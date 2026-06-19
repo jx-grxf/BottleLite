@@ -10,9 +10,15 @@ let package = Package(
     products: [
         .executable(name: "BottleLite", targets: ["BottleLite"])
     ],
+    dependencies: [
+        .package(url: "https://github.com/sparkle-project/Sparkle", exact: "2.9.3")
+    ],
     targets: [
         .executableTarget(
             name: "BottleLite",
+            dependencies: [
+                .product(name: "Sparkle", package: "Sparkle")
+            ],
             path: "Sources/BottleLite"
         ),
         .testTarget(

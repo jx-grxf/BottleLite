@@ -21,6 +21,7 @@ APP_BUNDLE="$DIST_DIR/$APP_NAME.app"
 APP_CONTENTS="$APP_BUNDLE/Contents"
 APP_MACOS="$APP_CONTENTS/MacOS"
 APP_RESOURCES="$APP_CONTENTS/Resources"
+APP_FRAMEWORKS="$APP_CONTENTS/Frameworks"
 APP_BINARY="$APP_MACOS/$APP_NAME"
 INFO_PLIST="$APP_CONTENTS/Info.plist"
 ICON_SOURCE="$ROOT_DIR/assets/BottleLite.icns"
@@ -33,6 +34,8 @@ cd "$ROOT_DIR"
 APP_VERSION="${BOTTLELITE_VERSION:-$(tr -d '[:space:]' <VERSION 2>/dev/null || echo 0.0.0)}"
 APP_BUILD="${BOTTLELITE_BUILD:-$(git rev-list --count HEAD 2>/dev/null || echo 1)}"
 CONFIGURATION="${BOTTLELITE_CONFIGURATION:-debug}"
+BOTTLELITE_SPARKLE_PUBLIC_KEY="${BOTTLELITE_SPARKLE_PUBLIC_KEY:-mfMTRb7wc/RmaJckwKlm+ESCHKDp75q5WHJYRxWddnU=}"
+BOTTLELITE_SIGN_IDENTITY="${BOTTLELITE_SIGN_IDENTITY:--}"
 COPYRIGHT="Copyright © $(date +%Y) Johannes Grof. MIT licensed."
 
 pkill -x "$APP_NAME" >/dev/null 2>&1 || true
@@ -53,9 +56,33 @@ case "$CONFIGURATION" in
 esac
 
 rm -rf "$APP_BUNDLE"
-mkdir -p "$APP_MACOS" "$APP_RESOURCES"
+mkdir -p "$APP_MACOS" "$APP_RESOURCES" "$APP_FRAMEWORKS"
 cp "$BUILD_BINARY" "$APP_BINARY"
 chmod +x "$APP_BINARY"
+
+find_sparkle_framework() {
+  local root framework
+  for root in "$ROOT_DIR/.build/artifacts" "$HOME/Library/Caches/org.swift.swiftpm/artifacts"; do
+    [[ -d "$root" ]] || continue
+    framework="$(find "$root" -type d -name Sparkle.framework 2>/dev/null | head -n 1 || true)"
+    if [[ -n "$framework" ]]; then
+      printf '%s' "$framework"
+      return 0
+    fi
+  done
+  return 1
+}
+
+SPARKLE_FRAMEWORK="$(find_sparkle_framework || true)"
+if [[ -z "$SPARKLE_FRAMEWORK" ]]; then
+  echo "error: Sparkle.framework was not found after swift build" >&2
+  exit 1
+fi
+cp -R "$SPARKLE_FRAMEWORK" "$APP_FRAMEWORKS/"
+
+if ! otool -l "$APP_BINARY" | grep -q '@executable_path/../Frameworks'; then
+  install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP_BINARY"
+fi
 
 if [[ -f "$ICON_SOURCE" ]]; then
   cp "$ICON_SOURCE" "$APP_RESOURCES/$ICON_NAME"
@@ -92,14 +119,30 @@ cat >"$INFO_PLIST" <<PLIST
   <string>NSApplication</string>
   <key>NSHighResolutionCapable</key>
   <true/>
+  <key>SUFeedURL</key>
+  <string>https://github.com/jx-grxf/BottleLite/releases/latest/download/appcast.xml</string>
+  <key>SUPublicEDKey</key>
+  <string>$BOTTLELITE_SPARKLE_PUBLIC_KEY</string>
+  <key>SUEnableInstallerLauncherService</key>
+  <true/>
+  <key>SUEnableAutomaticChecks</key>
+  <true/>
+  <key>SUScheduledCheckInterval</key>
+  <integer>3600</integer>
 </dict>
 </plist>
 PLIST
 
-# Ad-hoc sign with the hardened runtime so local builds behave like a preview
-# release build (Gatekeeper, library validation). Real Developer ID signing is a
-# future distribution step; this command must still succeed for packaged DMGs.
-codesign --force --sign - --options runtime --timestamp=none "$APP_BUNDLE" >/dev/null
+# Ad-hoc preview signing is intentionally not hardened: Hardened Runtime's
+# library validation rejects Sparkle's pre-signed framework unless a real
+# Developer ID identity is used. When BOTTLELITE_SIGN_IDENTITY is configured,
+# use Hardened Runtime so the same script is notarization-ready.
+SIGN_ARGS=(--force --sign "$BOTTLELITE_SIGN_IDENTITY" --timestamp=none)
+if [[ "$BOTTLELITE_SIGN_IDENTITY" != "-" ]]; then
+  SIGN_ARGS+=(--options runtime)
+fi
+codesign "${SIGN_ARGS[@]}" "$APP_FRAMEWORKS/Sparkle.framework" >/dev/null
+codesign "${SIGN_ARGS[@]}" "$APP_BUNDLE" >/dev/null
 
 echo "Built $APP_BUNDLE ($APP_VERSION build $APP_BUILD, $CONFIGURATION)"
 

@@ -10,7 +10,9 @@ struct BottleLiteApp: App {
         WindowGroup("BottleLite", id: "main") {
             ContentView(store: store)
                 .frame(minWidth: 920, minHeight: 560)
-                .onAppear { appDelegate.store = store }
+                .onAppear {
+                    appDelegate.store = store
+                }
         }
         .commands {
             SidebarCommands()
@@ -40,6 +42,8 @@ struct BottleLiteApp: App {
                 .disabled(!store.hasRunningPrograms)
             }
 
+            UpdateCommands(updates: appDelegate.updates)
+
             CommandGroup(replacing: .help) {
                 Link("BottleLite on GitHub", destination: Self.repositoryURL)
                 Link("Report an Issue", destination: Self.issuesURL)
@@ -47,7 +51,7 @@ struct BottleLiteApp: App {
         }
 
         Settings {
-            SettingsView(store: store)
+            SettingsView(store: store, updates: appDelegate.updates)
         }
     }
 
@@ -55,13 +59,28 @@ struct BottleLiteApp: App {
     static let issuesURL = URL(string: "https://github.com/jx-grxf/BottleLite/issues")!
 }
 
+private struct UpdateCommands: Commands {
+    @ObservedObject var updates: UpdateService
+
+    var body: some Commands {
+        CommandGroup(after: .appInfo) {
+            Button("Check for Updates...") {
+                updates.checkForUpdates()
+            }
+            .disabled(!updates.canCheckForUpdates)
+        }
+    }
+}
+
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     weak var store: BottleStore?
+    let updates = UpdateService()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
+        updates.start()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {

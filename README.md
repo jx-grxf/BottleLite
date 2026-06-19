@@ -12,14 +12,14 @@ A lightweight, open-source macOS runner for Windows apps. Native SwiftUI, no Ele
 ![Swift](https://img.shields.io/badge/swift-6.0-orange)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
-[Download](https://github.com/jx-grxf/BottleLite/releases/latest) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) · [Roadmap](#roadmap)
+[Download](https://github.com/jx-grxf/BottleLite/releases/latest) · [Release runbook](docs/release.md) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) · [Roadmap](#roadmap)
 
 </div>
 
 > [!NOTE]
-> BottleLite 0.1.0 is a first preview release. It is ad-hoc signed with the
-> hardened runtime but not yet Developer ID signed or notarized, so macOS will
-> require the right-click → Open flow on first launch.
+> BottleLite 0.1.0 is a first preview release. It is ad-hoc signed but not yet
+> Developer ID signed or notarized, so macOS will require the right-click → Open
+> flow on first launch.
 
 > [!TIP]
 > Whisky — the popular SwiftUI Wine wrapper — is no longer maintained. BottleLite
@@ -52,7 +52,9 @@ A lightweight, open-source macOS runner for Windows apps. Native SwiftUI, no Ele
   via winetricks (.NET, Visual C++, corefonts, DXVK, DirectX 9).
 - **Lives in macOS.** SwiftUI sidebar/detail layout, menu commands and keyboard
   shortcuts, a Settings window, a multi-resolution app icon, and an ad-hoc
-  hardened-runtime build.
+  signed preview build.
+- **Sparkle updates.** Stable and beta update channels are wired through signed
+  Sparkle appcasts published by GitHub Actions.
 
 No telemetry, no account, no embedded browser, no bundled Wine.
 
@@ -134,14 +136,15 @@ Tests/        Swift Testing tests
 
 Pushing a `vX.Y.Z` tag (matching `VERSION`) triggers the
 [release workflow](.github/workflows/release.yml): it builds the app, packages a
-release-mode DMG, writes a SHA-256 checksum, and publishes a GitHub release.
-Public notes live in
+release-mode DMG, signs a Sparkle ZIP/appcast, writes `SHA256SUMS`, optionally
+notarizes when secrets are configured, and publishes a GitHub release. Full
+runbook: [docs/release.md](docs/release.md). Public notes live in
 [RELEASE_NOTES.md](RELEASE_NOTES.md).
 
 Distribution roadmap:
 
 - Developer ID signing and notarization once Apple Developer enrollment lands.
-- Sparkle auto-updates and a Homebrew Cask after the first notarized release.
+- Homebrew Cask after the first notarized release.
 
 ## Roadmap
 
@@ -151,7 +154,8 @@ Distribution roadmap:
 - [x] Wine version detection in the UI.
 - [ ] Per-bottle Windows version and Wine config presets.
 - [ ] Bottle snapshots / duplication.
-- [ ] Signed, notarized releases + Sparkle updates.
+- [x] Sparkle stable/beta update channels.
+- [ ] Developer ID signed and notarized releases.
 
 ### Non-goals
 

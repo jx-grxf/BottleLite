@@ -3,6 +3,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @ObservedObject var store: BottleStore
+    @ObservedObject var updates: UpdateService
 
     var body: some View {
         Form {
@@ -24,6 +25,34 @@ struct SettingsView: View {
                 }
             }
 
+            Section("Updates") {
+                LabeledContent("Installed", value: Self.appVersion)
+
+                if updates.isUpdateAvailable, let available = updates.availableUpdateVersion {
+                    LabeledContent("Available") {
+                        Label(available, systemImage: "arrow.down.circle.fill")
+                    }
+                }
+
+                Picker("Channel", selection: $updates.channel) {
+                    ForEach(UpdateService.Channel.allCases) { channel in
+                        Text(channel.displayName).tag(channel)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                Toggle("Check automatically", isOn: automaticChecksBinding)
+
+                if let date = updates.lastCheckDate {
+                    LabeledContent("Last check", value: date.formatted(date: .abbreviated, time: .shortened))
+                }
+
+                Button("Check Now") {
+                    updates.checkForUpdates()
+                }
+                .disabled(!updates.canCheckForUpdates)
+            }
+
             Section("Storage") {
                 Button("Reveal Bottle Data in Finder") {
                     if let url = try? BottleStorage.supportDirectory() {
@@ -33,7 +62,6 @@ struct SettingsView: View {
             }
 
             Section("About") {
-                LabeledContent("Version", value: Self.appVersion)
                 Link("BottleLite on GitHub", destination: BottleLiteApp.repositoryURL)
             }
         }
@@ -46,5 +74,12 @@ struct SettingsView: View {
         let short = info?["CFBundleShortVersionString"] as? String ?? "dev"
         let build = info?["CFBundleVersion"] as? String
         return build.map { "\(short) (\($0))" } ?? short
+    }
+
+    private var automaticChecksBinding: Binding<Bool> {
+        Binding(
+            get: { updates.automaticallyChecksForUpdates },
+            set: { updates.automaticallyChecksForUpdates = $0 }
+        )
     }
 }
