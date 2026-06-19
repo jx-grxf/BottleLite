@@ -18,15 +18,46 @@ SOURCE="assets/bottlelite_logo.png"
 ICNS_OUT="assets/BottleLite.icns"
 LOGO_OUT=".github/assets/logo.png"
 
-# Rasterize the vector source to the 1024px master via Quick Look when present.
+# Rasterize the vector source to the 1024px master when present. Prefer
+# Inkscape because Quick Look flattens SVG transparency to white on some macOS
+# versions, which leaves a visible square behind the rounded app icon.
 if [[ -f "$SVG_SOURCE" ]]; then
-  TMP_QL="$(mktemp -d)"
-  trap 'rm -rf "$TMP_QL"' EXIT
-  qlmanage -t -s 1024 -o "$TMP_QL" "$SVG_SOURCE" >/dev/null 2>&1
-  rendered="$TMP_QL/$(basename "$SVG_SOURCE").png"
-  if [[ -f "$rendered" ]]; then
-    sips -z 1024 1024 "$rendered" --out "$SOURCE" >/dev/null
+  if command -v inkscape >/dev/null 2>&1 && inkscape --version >/dev/null 2>&1; then
+    inkscape "$SVG_SOURCE" \
+      --export-type=png \
+      --export-filename="$SOURCE" \
+      --export-width=1024 \
+      --export-height=1024 \
+      --export-background-opacity=0 >/dev/null
     echo "Rasterized $SVG_SOURCE -> $SOURCE"
+  else
+    TMP_QL="$(mktemp -d)"
+    trap 'rm -rf "$TMP_QL"' EXIT
+    qlmanage -t -s 1024 -o "$TMP_QL" "$SVG_SOURCE" >/dev/null 2>&1
+    rendered="$TMP_QL/$(basename "$SVG_SOURCE").png"
+    if [[ -f "$rendered" ]]; then
+      sips -z 1024 1024 "$rendered" --out "$SOURCE" >/dev/null
+      python3 - "$SOURCE" <<'PY'
+from PIL import Image, ImageDraw
+import sys
+
+path = sys.argv[1]
+image = Image.open(path).convert("RGBA")
+size = image.size[0]
+scale = 4
+mask = Image.new("L", (size * scale, size * scale), 0)
+draw = ImageDraw.Draw(mask)
+draw.rounded_rectangle(
+    [40 * scale, 40 * scale, 984 * scale, 984 * scale],
+    radius=232 * scale,
+    fill=255,
+)
+mask = mask.resize(image.size, Image.Resampling.LANCZOS)
+image.putalpha(mask)
+image.save(path)
+PY
+      echo "Rasterized $SVG_SOURCE -> $SOURCE"
+    fi
   fi
 fi
 
@@ -45,10 +76,31 @@ ICONSET="$(mktemp -d)/BottleLite.iconset"
 mkdir -p "$ICONSET"
 trap 'rm -rf "$(dirname "$ICONSET")"' EXIT
 
+clean_transparency() {
+  python3 - "$@" <<'PY'
+from PIL import Image
+import sys
+
+for path in sys.argv[1:]:
+    image = Image.open(path).convert("RGBA")
+    pixels = image.load()
+    width, height = image.size
+    for y in range(height):
+        for x in range(width):
+            red, green, blue, alpha = pixels[x, y]
+            if alpha <= 4:
+                pixels[x, y] = (0, 0, 0, 0)
+    image.save(path)
+PY
+}
+
+clean_transparency "$SOURCE"
+
 # size:filename pairs for the standard macOS iconset.
 render() {
   local size="$1" name="$2"
   sips -z "$size" "$size" "$SOURCE" --out "$ICONSET/$name" >/dev/null
+  clean_transparency "$ICONSET/$name"
 }
 
 render 16   icon_16x16.png
@@ -67,4 +119,5 @@ echo "Wrote $ICNS_OUT"
 
 mkdir -p "$(dirname "$LOGO_OUT")"
 sips -z 256 256 "$SOURCE" --out "$LOGO_OUT" >/dev/null
+clean_transparency "$LOGO_OUT"
 echo "Wrote $LOGO_OUT"
