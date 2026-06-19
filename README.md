@@ -1,124 +1,162 @@
-<p align="center">
-  <h1 align="center">BottleLite</h1>
-  <p align="center">A lightweight, open-source macOS runner for Windows apps.</p>
-</p>
+<div align="center">
 
-<p align="center">
-  <a href="https://github.com/jx-grxf/BottleLite/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/jx-grxf/BottleLite/ci.yml?branch=main&style=flat-square&label=CI"></a>
-  <a href="https://github.com/jx-grxf/BottleLite/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/github/license/jx-grxf/BottleLite?style=flat-square"></a>
-  <img alt="Platform" src="https://img.shields.io/badge/platform-macOS%2014%2B-111827?style=flat-square&logo=apple">
-  <img alt="Swift" src="https://img.shields.io/badge/Swift-6.0-F05138?style=flat-square&logo=swift&logoColor=white">
-  <img alt="Native" src="https://img.shields.io/badge/native-SwiftUI-0A84FF?style=flat-square">
-  <img alt="Telemetry" src="https://img.shields.io/badge/telemetry-none-16A34A?style=flat-square">
-</p>
+# BottleLite
 
-BottleLite is an indie macOS app for running Windows `.exe` files through an
-existing Wine runtime without turning the experience into a heavy launcher.
+<img src=".github/assets/logo.png" width="140" height="140" alt="BottleLite app icon" />
 
-It is intentionally small: native SwiftUI, no Electron, no accounts, no cloud,
-no telemetry, and no bundled proprietary runtime.
+A lightweight, open-source macOS runner for Windows apps. Native SwiftUI, no Electron, no accounts, no telemetry, no bundled runtime — it drives the Wine you already have.
 
-## Why
+[![CI](https://github.com/jx-grxf/BottleLite/actions/workflows/ci.yml/badge.svg)](https://github.com/jx-grxf/BottleLite/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/jx-grxf/BottleLite?label=release)](https://github.com/jx-grxf/BottleLite/releases/latest)
+![Platform](https://img.shields.io/badge/platform-macOS%2014%2B-111827)
+![Swift](https://img.shields.io/badge/swift-6.0-orange)
+![License](https://img.shields.io/badge/license-MIT-blue)
 
-Most Wine frontends are either powerful but busy, game-first, or tied to large
-runtime assumptions. BottleLite aims for the opposite:
+[Download](https://github.com/jx-grxf/BottleLite/releases/latest) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) · [Roadmap](#roadmap)
 
-- Pick or drop an `.exe`.
-- Keep it inside a simple bottle.
-- Show what is installed, what is missing, and where logs live.
-- Stay understandable enough that contributors can improve it without learning
-  a giant launcher architecture first.
+</div>
 
-## Current Status
+> [!TIP]
+> Whisky — the popular SwiftUI Wine wrapper — is no longer maintained. BottleLite
+> aims at the same "native, no-bloat" spot: a small app that manages bottles and
+> runs your `.exe` files through an existing Wine, and nothing more.
 
-BottleLite is an early prototype. The current app shell can:
+## What it does
 
-- create lightweight bottle records
-- import and validate Windows executables by extension and `MZ` header
-- detect a local Homebrew Wine runtime
-- launch as a real macOS `.app` bundle from SwiftPM
-- run tests in CI
+- **Bottles that persist.** Create, rename, and delete bottles. Records and
+  imported programs are saved under Application Support and restored on launch.
+  Deleting a bottle moves its Wine prefix to the Trash.
+- **Import and validate.** Drop or pick an `.exe`; BottleLite checks the
+  extension and `MZ` header and isolates each program in its bottle.
+- **Run through Wine.** Launch and stop programs. The detected Wine version shows
+  in the header, and every launch captures stdout/stderr to a per-program log you
+  can open from the app.
+- **Console tools work too.** BottleLite reads the Windows PE subsystem on import:
+  GUI apps run quietly through Wine, while console/CUI tools open in Terminal.app
+  so command output and prompts are visible. You can override this per program in
+  Program Settings.
+- **Installer → game flow.** Run an installer, then **Add Installed Program**
+  scans the bottle's C: drive and adds the actual game/app it dropped — skipping
+  uninstallers and redistributables — or browse C: manually.
+- **Game Mode.** A per-bottle switch for extra performance: msync/esync,
+  large-address-aware, higher process priority, a macOS power assertion (no App
+  Nap / no idle sleep), and the Metal FPS overlay. Pair it with DXVK for the GPU
+  side.
+- **Per-bottle tooling.** Initialize the prefix (`wineboot`), open `winecfg`, run
+  an installer, reveal the C: drive in Finder, and install common dependencies
+  via winetricks (.NET, Visual C++, corefonts, DXVK, DirectX 9).
+- **Lives in macOS.** SwiftUI sidebar/detail layout, menu commands and keyboard
+  shortcuts, a Settings window, a multi-resolution app icon, and an ad-hoc
+  hardened-runtime build.
 
-Running programs through Wine is the next implementation milestone.
+No telemetry, no account, no embedded browser, no bundled Wine.
 
-## Design Principles
+## Install
 
-- **Mac-native first**: SwiftUI windows, toolbars, menus, settings, and system
-  materials.
-- **Fast by default**: small state model, no embedded browser, no background
-  services.
-- **Runtime-agnostic**: detect existing Wine builds first; do not vendor closed
-  runtime components into the repo.
-- **Honest diagnostics**: show missing Wine, invalid EXE files, and launch logs
-  clearly.
-- **Hackable**: SwiftPM package, one build script, readable modules.
+1. Download the latest `BottleLite-<version>.dmg` from
+   [GitHub Releases](https://github.com/jx-grxf/BottleLite/releases/latest).
+2. Open the DMG and drag `BottleLite.app` into Applications.
+3. First launch on an unsigned preview build: right-click `BottleLite.app` → Open
+   → confirm. Developer ID notarization is queued for a later release.
 
-## Requirements
-
-- macOS 14 or newer
-- Xcode command line tools or Xcode
-- Swift 6 compatible toolchain
-- Optional: Wine installed with Homebrew for runtime detection
+Requires macOS 14 or newer. For running programs you also need Wine:
 
 ```bash
 brew install --cask wine-stable
+# optional, for one-click dependencies:
+brew install winetricks
 ```
 
-## Build
+BottleLite detects an existing Wine install; it can also open a Homebrew
+installer in Terminal for you if none is found.
+
+## Usage notes
+
+- Import GUI apps and installers with **Import .exe** or by dropping them into the
+  selected bottle.
+- Import command-line tools the same way. If the executable declares itself as a
+  Windows console program, BottleLite opens it in Terminal.app instead of hiding
+  its output in a background log.
+- Add arguments from **Program Settings…**. Quote values with spaces, for example
+  `-input "My File.pdf" -output out.pdf`.
+- If a tool was misdetected, open **Program Settings…** and toggle **Run in
+  Terminal** manually.
+
+## Design principles
+
+- **Mac-native first** — SwiftUI windows, toolbars, menus, Settings, system materials.
+- **Runtime-agnostic** — detect existing Wine builds; never vendor a closed runtime.
+- **Honest diagnostics** — show missing Wine, invalid `.exe` files, and launch logs clearly.
+- **Hackable** — SwiftPM package, readable modules behind protocols, one build script.
+
+## Build from source
 
 ```bash
 git clone https://github.com/jx-grxf/BottleLite.git
 cd BottleLite
 make build
 make test
+make run        # stages and launches dist/BottleLite.app
 ```
 
-## Run
-
-BottleLite is a SwiftPM GUI app. Use the project script so it is staged and
-opened as a real macOS app bundle:
+Other targets:
 
 ```bash
-make run
+make lint       # swift-format lint + shellcheck
+make format     # apply swift-format in place
+make icons      # regenerate the app icon set from assets/bottlelite_icon.svg
+make package    # build dist/BottleLite-<version>.dmg
 ```
 
-The app bundle is written to:
-
-```text
-dist/BottleLite.app
-```
-
-## Repository Layout
+## Repository layout
 
 ```text
 Sources/BottleLite/
   App/        App entry point and macOS activation
-  Models/     Bottle and program data types
-  Stores/     App state
-  Services/   EXE validation and Wine runtime probing
+  Models/     Bottle, program, and runtime-status types
+  Stores/     App state (BottleStore)
+  Services/   EXE validation, Wine probing, running, tooling, persistence
   Views/      SwiftUI windows and panels
-  Support/    Small shared helpers
-script/       Build and run entrypoint
+  Support/    Shell helper, on-disk layout, formatters
+script/       build_and_run.sh · make_icons.sh · package_dmg.sh
+assets/       Icon source (SVG) and generated .icns
 Tests/        Swift Testing tests
 ```
 
+## Release pipeline
+
+Pushing a `vX.Y.Z` tag (matching `VERSION`) triggers the
+[release workflow](.github/workflows/release.yml): it builds the app, packages a
+DMG, and publishes a GitHub release. Public notes live in
+[RELEASE_NOTES.md](RELEASE_NOTES.md).
+
+Distribution roadmap:
+
+- Developer ID signing and notarization once Apple Developer enrollment lands.
+- Sparkle auto-updates and a Homebrew Cask after the first notarized release.
+
 ## Roadmap
 
-- Run imported `.exe` files through Wine.
-- Create real per-bottle Wine prefixes.
-- Add bottle folders under Application Support.
-- Show launch logs inside the app.
-- Add Winetricks/runtime helper checks.
-- Add a lightweight `.app` wrapper export.
-- Package signed builds for releases.
+- [x] Bottle persistence and management (rename, delete-to-Trash).
+- [x] Run/stop programs through Wine with per-launch logs.
+- [x] Per-bottle tooling: prefix init, winecfg, installers, winetricks, reveal C:.
+- [x] Wine version detection in the UI.
+- [ ] Per-bottle Windows version and Wine config presets.
+- [ ] Bottle snapshots / duplication.
+- [ ] Signed, notarized releases + Sparkle updates.
 
-## Non-Goals
+### Non-goals
 
-- Reimplementing Wine.
-- Bundling Apple Game Porting Toolkit files.
-- Becoming a full game launcher.
-- Tracking users or phoning home.
+Reimplementing Wine · bundling Apple's Game Porting Toolkit · becoming a full
+game launcher · tracking users or phoning home.
+
+## Contributing
+
+Issues and focused pull requests welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md),
+keep changes scoped, and run `make lint && make test` before opening a PR.
+Security reports go through [SECURITY.md](SECURITY.md).
 
 ## License
 
 MIT. See [LICENSE](LICENSE).
+Johannes Grof — 2026

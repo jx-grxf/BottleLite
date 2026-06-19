@@ -4,12 +4,21 @@ struct RuntimeStatus: Equatable {
     var state: RuntimeState
     var message: String
     var winePath: String?
+    var version: String?
 
     static let unknown = RuntimeStatus(
         state: .unknown,
         message: "Checking Wine runtime...",
-        winePath: nil
+        winePath: nil,
+        version: nil
     )
+
+    /// A short, human-friendly description of the detected runtime, e.g.
+    /// "Wine 10.0" — falls back to the status message when unknown.
+    var displayName: String {
+        guard let version, !version.isEmpty else { return message }
+        return version
+    }
 }
 
 enum RuntimeState: Equatable {

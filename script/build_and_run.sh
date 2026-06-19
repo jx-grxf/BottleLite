@@ -1,4 +1,13 @@
 #!/usr/bin/env bash
+# Build the BottleLite SwiftPM binary, stage it into a real .app bundle, and
+# (optionally) launch it.
+#
+# Usage:
+#   ./script/build_and_run.sh              # build + launch
+#   ./script/build_and_run.sh build-only   # build + stage bundle, do not launch
+#   ./script/build_and_run.sh --debug      # build + attach lldb
+#   ./script/build_and_run.sh --logs       # build + launch + stream os_log
+#   ./script/build_and_run.sh --verify     # build + launch + assert it is running
 set -euo pipefail
 
 MODE="${1:-run}"
@@ -18,6 +27,12 @@ ICON_SOURCE="$ROOT_DIR/assets/BottleLite.icns"
 ICON_NAME="BottleLite.icns"
 
 cd "$ROOT_DIR"
+
+# Version metadata: marketing version from the VERSION file, build number from
+# the git commit count so each commit produces a monotonically rising build.
+APP_VERSION="${BOTTLELITE_VERSION:-$(tr -d '[:space:]' <VERSION 2>/dev/null || echo 0.0.0)}"
+APP_BUILD="${BOTTLELITE_BUILD:-$(git rev-list --count HEAD 2>/dev/null || echo 1)}"
+COPYRIGHT="Copyright © $(date +%Y) Johannes Grof. MIT licensed."
 
 pkill -x "$APP_NAME" >/dev/null 2>&1 || true
 
@@ -46,6 +61,10 @@ cat >"$INFO_PLIST" <<PLIST
   <string>$APP_NAME</string>
   <key>CFBundleDisplayName</key>
   <string>$APP_NAME</string>
+  <key>CFBundleShortVersionString</key>
+  <string>$APP_VERSION</string>
+  <key>CFBundleVersion</key>
+  <string>$APP_BUILD</string>
   <key>CFBundleIconFile</key>
   <string>$ICON_NAME</string>
   <key>CFBundlePackageType</key>
@@ -54,17 +73,30 @@ cat >"$INFO_PLIST" <<PLIST
   <string>public.app-category.utilities</string>
   <key>LSMinimumSystemVersion</key>
   <string>$MIN_SYSTEM_VERSION</string>
+  <key>NSHumanReadableCopyright</key>
+  <string>$COPYRIGHT</string>
   <key>NSPrincipalClass</key>
   <string>NSApplication</string>
+  <key>NSHighResolutionCapable</key>
+  <true/>
 </dict>
 </plist>
 PLIST
+
+# Ad-hoc sign with the hardened runtime so local builds behave like a release
+# build (Gatekeeper, library validation). Real Developer ID signing happens in
+# the release pipeline.
+codesign --force --sign - --options runtime --timestamp=none "$APP_BUNDLE" >/dev/null 2>&1 || true
+
+echo "Built $APP_BUNDLE ($APP_VERSION build $APP_BUILD)"
 
 open_app() {
   /usr/bin/open -n "$APP_BUNDLE"
 }
 
 case "$MODE" in
+  build-only)
+    ;;
   run)
     open_app
     ;;
@@ -85,7 +117,7 @@ case "$MODE" in
     pgrep -x "$APP_NAME" >/dev/null
     ;;
   *)
-    echo "usage: $0 [run|--debug|--logs|--telemetry|--verify]" >&2
+    echo "usage: $0 [run|build-only|--debug|--logs|--telemetry|--verify]" >&2
     exit 2
     ;;
 esac

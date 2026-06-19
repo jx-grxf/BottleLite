@@ -1,0 +1,58 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  release:
+    name: Build and publish DMG
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Resolve version
+        id: version
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME#v}"
+          file="$(tr -d '[:space:]' <VERSION)"
+          if [[ "$tag" != "$file" ]]; then
+            echo "error: tag $GITHUB_REF_NAME does not match VERSION ($file)" >&2
+            exit 1
+          fi
+          echo "version=$tag" >>"$GITHUB_OUTPUT"
+
+      - name: Build DMG
+        env:
+          BOTTLELITE_VERSION: ${{ steps.version.outputs.version }}
+          BOTTLELITE_BUILD: ${{ github.run_number }}
+        run: ./script/package_dmg.sh
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          notes_args=(--generate-notes)
+          if [[ -f RELEASE_NOTES.md ]]; then
+            notes_args=(--notes-file RELEASE_NOTES.md)
+          fi
+          gh release create "$GITHUB_REF_NAME" \
+            "dist/BottleLite-${VERSION}.dmg" \
+            --title "BottleLite ${VERSION}" \
+            "${notes_args[@]}"
