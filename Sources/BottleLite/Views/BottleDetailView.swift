@@ -125,7 +125,7 @@ private struct BottleActionsMenu: View {
     private var gameModeBinding: Binding<Bool> {
         Binding(
             get: { store.isGameMode(bottle) },
-            set: { _ in store.toggleGameMode(for: bottle) }
+            set: { store.setGameMode($0, for: bottle) }
         )
     }
 

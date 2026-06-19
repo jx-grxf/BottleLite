@@ -16,6 +16,11 @@ A lightweight, open-source macOS runner for Windows apps. Native SwiftUI, no Ele
 
 </div>
 
+> [!NOTE]
+> BottleLite 0.1.0 is a first preview release. It is ad-hoc signed with the
+> hardened runtime but not yet Developer ID signed or notarized, so macOS will
+> require the right-click → Open flow on first launch.
+
 > [!TIP]
 > Whisky — the popular SwiftUI Wine wrapper — is no longer maintained. BottleLite
 > aims at the same "native, no-bloat" spot: a small app that manages bottles and
@@ -55,6 +60,7 @@ No telemetry, no account, no embedded browser, no bundled Wine.
 
 1. Download the latest `BottleLite-<version>.dmg` from
    [GitHub Releases](https://github.com/jx-grxf/BottleLite/releases/latest).
+   The release also includes a `.sha256` file so you can verify the download.
 2. Open the DMG and drag `BottleLite.app` into Applications.
 3. First launch on an unsigned preview build: right-click `BottleLite.app` → Open
    → confirm. Developer ID notarization is queued for a later release.
@@ -68,7 +74,8 @@ brew install winetricks
 ```
 
 BottleLite detects an existing Wine install; it can also open a Homebrew
-installer in Terminal for you if none is found.
+installer in Terminal for you if none is found. It does not install or bundle
+Wine inside the app.
 
 ## Usage notes
 
@@ -127,7 +134,8 @@ Tests/        Swift Testing tests
 
 Pushing a `vX.Y.Z` tag (matching `VERSION`) triggers the
 [release workflow](.github/workflows/release.yml): it builds the app, packages a
-DMG, and publishes a GitHub release. Public notes live in
+release-mode DMG, writes a SHA-256 checksum, and publishes a GitHub release.
+Public notes live in
 [RELEASE_NOTES.md](RELEASE_NOTES.md).
 
 Distribution roadmap:

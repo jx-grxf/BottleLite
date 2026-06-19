@@ -32,6 +32,7 @@ struct BottleRepository: BottleStoring {
         do {
             return try Self.decoder.decode([Bottle].self, from: data)
         } catch {
+            quarantineUnreadableStore(at: url)
             return []
         }
     }
@@ -58,4 +59,11 @@ struct BottleRepository: BottleStoring {
         decoder.dateDecodingStrategy = .iso8601
         return decoder
     }()
+
+    private func quarantineUnreadableStore(at url: URL) {
+        let stamp = Int(Date().timeIntervalSince1970)
+        let backup = url.deletingLastPathComponent()
+            .appending(path: "bottles.corrupt-\(stamp).json")
+        try? FileManager.default.moveItem(at: url, to: backup)
+    }
 }

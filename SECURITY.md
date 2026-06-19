@@ -46,8 +46,9 @@ Out of scope (for now):
 ## Hardening
 
 - Local builds are ad-hoc signed with the hardened runtime
-  (`codesign --options runtime`); release builds will use Developer ID signing
-  and notarization once Apple Developer enrollment lands.
+  (`codesign --options runtime`). Preview release DMGs use the same ad-hoc
+  hardened-runtime signature and publish a SHA-256 checksum; Developer ID
+  signing and notarization are planned once Apple Developer enrollment lands.
 - No bundled Wine, GPTK, or closed-source runtime components.
 - Each bottle runs in its own `WINEPREFIX` under
   `~/Library/Application Support/BottleLite/Bottles/<id>` — deleting a bottle

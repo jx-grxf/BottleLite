@@ -15,8 +15,8 @@ DIST_DIR="dist"
 APP_BUNDLE="$DIST_DIR/$APP_NAME.app"
 DMG_PATH="$DIST_DIR/$APP_NAME-$VERSION.dmg"
 
-# Build and stage the app bundle (no launch).
-BOTTLELITE_VERSION="$VERSION" ./script/build_and_run.sh build-only
+# Build and stage an optimized app bundle (no launch).
+BOTTLELITE_VERSION="$VERSION" BOTTLELITE_CONFIGURATION=release ./script/build_and_run.sh build-only
 
 if [[ ! -d "$APP_BUNDLE" ]]; then
   echo "error: $APP_BUNDLE was not produced" >&2
@@ -39,3 +39,5 @@ hdiutil create \
 
 echo "Built $DMG_PATH"
 hdiutil imageinfo "$DMG_PATH" >/dev/null && echo "DMG verified."
+shasum -a 256 "$DMG_PATH" >"$DMG_PATH.sha256"
+echo "Wrote $DMG_PATH.sha256"

@@ -37,39 +37,60 @@ enum BottleStorage {
         return directory
     }
 
-    /// The Wine prefix directory for a bottle, creating intermediate folders.
-    static func prefixURL(for bottle: Bottle, using fileManager: FileManager = .default) throws -> URL {
+    /// The Wine prefix directory for a bottle. Most run/tooling paths create it;
+    /// read-only checks should pass `create: false` to avoid leaving empty
+    /// prefixes behind.
+    static func prefixURL(
+        for bottle: Bottle,
+        using fileManager: FileManager = .default,
+        create: Bool = true
+    ) throws -> URL {
         let prefix = try bottlesDirectory(using: fileManager)
             .appending(path: bottle.id.uuidString, directoryHint: .isDirectory)
-        try fileManager.createDirectory(at: prefix, withIntermediateDirectories: true)
+        if create {
+            try fileManager.createDirectory(at: prefix, withIntermediateDirectories: true)
+        }
         return prefix
     }
 
-    static func driveCURL(for bottle: Bottle, using fileManager: FileManager = .default) throws -> URL {
-        try prefixURL(for: bottle, using: fileManager)
+    static func driveCURL(
+        for bottle: Bottle,
+        using fileManager: FileManager = .default,
+        create: Bool = true
+    ) throws -> URL {
+        try prefixURL(for: bottle, using: fileManager, create: create)
             .appending(path: "drive_c", directoryHint: .isDirectory)
     }
 
-    static func logsDirectory(for bottle: Bottle, using fileManager: FileManager = .default) throws -> URL {
-        let logs = try prefixURL(for: bottle, using: fileManager)
+    static func logsDirectory(
+        for bottle: Bottle,
+        using fileManager: FileManager = .default,
+        create: Bool = true
+    ) throws -> URL {
+        let logs = try prefixURL(for: bottle, using: fileManager, create: create)
             .appending(path: "Logs", directoryHint: .isDirectory)
-        try fileManager.createDirectory(at: logs, withIntermediateDirectories: true)
+        if create {
+            try fileManager.createDirectory(at: logs, withIntermediateDirectories: true)
+        }
         return logs
     }
 
     static func logURL(
         for program: WindowsProgram,
         in bottle: Bottle,
-        using fileManager: FileManager = .default
+        using fileManager: FileManager = .default,
+        create: Bool = true
     ) throws -> URL {
-        try logsDirectory(for: bottle, using: fileManager)
+        try logsDirectory(for: bottle, using: fileManager, create: create)
             .appending(path: "\(program.id.uuidString).log")
     }
 
     /// Whether a bottle's prefix has already been initialized by Wine. A fresh
     /// prefix gains `system.reg` once `wineboot` (or the first launch) runs.
     static func isPrefixInitialized(for bottle: Bottle, using fileManager: FileManager = .default) -> Bool {
-        guard let prefix = try? prefixURL(for: bottle, using: fileManager) else { return false }
+        guard let prefix = try? prefixURL(for: bottle, using: fileManager, create: false) else {
+            return false
+        }
         return fileManager.fileExists(atPath: prefix.appending(path: "system.reg").path)
     }
 }

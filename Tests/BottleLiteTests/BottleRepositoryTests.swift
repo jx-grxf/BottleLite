@@ -37,4 +37,21 @@ struct BottleRepositoryTests {
         let repository = BottleRepository(fileURLOverride: url)
         #expect(repository.load().isEmpty)
     }
+
+    @Test func corruptStoreIsQuarantinedBeforeDefaultRewrite() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: "corrupt-store-\(UUID().uuidString)", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let url = directory.appending(path: "bottles.json")
+        try Data("{ not json".utf8).write(to: url)
+
+        let repository = BottleRepository(fileURLOverride: url)
+        #expect(repository.load().isEmpty)
+        #expect(!FileManager.default.fileExists(atPath: url.path))
+
+        let backups = try FileManager.default.contentsOfDirectory(atPath: directory.path)
+        #expect(backups.contains { $0.hasPrefix("bottles.corrupt-") && $0.hasSuffix(".json") })
+    }
 }

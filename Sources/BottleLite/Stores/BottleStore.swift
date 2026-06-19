@@ -97,7 +97,9 @@ final class BottleStore: ObservableObject {
             stop(program)
         }
 
-        if let prefixURL = try? BottleStorage.prefixURL(for: bottle) {
+        if let prefixURL = try? BottleStorage.prefixURL(for: bottle, create: false),
+            FileManager.default.fileExists(atPath: prefixURL.path)
+        {
             try? FileManager.default.trashItem(at: prefixURL, resultingItemURL: nil)
         }
 
@@ -245,9 +247,13 @@ final class BottleStore: ObservableObject {
     /// program launches). Re-evaluates the power assertion immediately so it
     /// applies to anything already running.
     func toggleGameMode(for bottle: Bottle) {
+        setGameMode(!isGameMode(bottle), for: bottle)
+    }
+
+    func setGameMode(_ enabled: Bool, for bottle: Bottle) {
         guard let index = bottles.firstIndex(where: { $0.id == bottle.id }) else { return }
-        bottles[index].gameMode.toggle()
-        let enabled = bottles[index].gameMode
+        guard bottles[index].gameMode != enabled else { return }
+        bottles[index].gameMode = enabled
         updatePowerAssertion()
         lastMessage =
             enabled
@@ -316,7 +322,7 @@ final class BottleStore: ObservableObject {
 
     /// The log file capturing a program's most recent run, if one exists.
     func existingLogURL(for program: WindowsProgram, in bottle: Bottle) -> URL? {
-        guard let url = try? BottleStorage.logURL(for: program, in: bottle),
+        guard let url = try? BottleStorage.logURL(for: program, in: bottle, create: false),
             FileManager.default.fileExists(atPath: url.path)
         else { return nil }
         return url
@@ -376,7 +382,7 @@ final class BottleStore: ObservableObject {
     }
 
     func revealDriveC(for bottle: Bottle) {
-        guard let driveC = try? BottleStorage.driveCURL(for: bottle) else { return }
+        guard let driveC = try? BottleStorage.driveCURL(for: bottle, create: false) else { return }
         if !FileManager.default.fileExists(atPath: driveC.path) {
             lastMessage = "Initialize \(bottle.name) first to create its C: drive."
             return
@@ -390,7 +396,7 @@ final class BottleStore: ObservableObject {
     /// Scans the bottle's prefix for installed executables and presents them so
     /// the user can add the actual game/app after an installer has run.
     func presentInstalledPrograms(for bottle: Bottle) {
-        guard let driveC = try? BottleStorage.driveCURL(for: bottle),
+        guard let driveC = try? BottleStorage.driveCURL(for: bottle, create: false),
             FileManager.default.fileExists(atPath: driveC.path)
         else {
             lastMessage = "Initialize \(bottle.name) and run an installer first."
@@ -430,7 +436,7 @@ final class BottleStore: ObservableObject {
     /// Opens an Open panel rooted at the bottle's C: drive so the user can pick an
     /// installed executable the scanner missed.
     func browseForInstalledProgram(in bottle: Bottle) {
-        guard let driveC = try? BottleStorage.driveCURL(for: bottle),
+        guard let driveC = try? BottleStorage.driveCURL(for: bottle, create: false),
             FileManager.default.fileExists(atPath: driveC.path)
         else {
             lastMessage = "Initialize \(bottle.name) and run an installer first."

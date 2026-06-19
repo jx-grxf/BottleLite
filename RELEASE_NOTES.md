@@ -13,6 +13,9 @@ Windows apps on top of an existing Wine runtime.
 - **Run through Wine.** Launch and stop programs, with the detected Wine version
   shown in the header. Each launch captures stdout/stderr to a per-program log
   you can open from the app.
+- **Console tools in Terminal.** Windows console/CUI tools are detected from the
+  PE subsystem and opened in Terminal.app so output and prompts are visible. The
+  setting can be overridden per program.
 - **Installer → game flow.** Run an installer in the bottle, then **Add Installed
   Program** scans the prefix's C: drive and lets you add the actual game/app it
   dropped (skipping uninstallers and redistributables) — or browse C: manually.
@@ -25,6 +28,8 @@ Windows apps on top of an existing Wine runtime.
 - **Native macOS.** SwiftUI sidebar/detail layout, menu commands and keyboard
   shortcuts, a Settings window, a proper multi-resolution app icon, and an
   ad-hoc hardened-runtime build.
+- **Release artifact.** The DMG is built from an optimized release binary and
+  published with a SHA-256 checksum file.
 
 No telemetry, no account, no bundled runtime.
 
@@ -32,3 +37,5 @@ No telemetry, no account, no bundled runtime.
 
 - Release builds are not yet Developer ID signed or notarized.
 - The App Sandbox is not enabled (see SECURITY.md).
+- BottleLite depends on an existing local Wine runtime and does not guarantee
+  compatibility for every Windows application.
