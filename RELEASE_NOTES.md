@@ -27,15 +27,17 @@ Windows apps on top of an existing Wine runtime.
   dependencies via winetricks (.NET, Visual C++, corefonts, DXVK).
 - **Native macOS.** SwiftUI sidebar/detail layout, menu commands and keyboard
   shortcuts, a Settings window, a proper multi-resolution app icon, and an
-  ad-hoc hardened-runtime build.
-- **Release artifact.** The DMG is built from an optimized release binary and
-  published with a SHA-256 checksum file.
+  ad-hoc signed preview build.
+- **Sparkle updates.** Stable and beta channels are wired through signed Sparkle
+  appcasts; beta builds publish a moving beta feed.
+- **Release artifact.** The DMG is built from an optimized release binary and is
+  published with a Sparkle ZIP, appcast, and SHA-256 checksums.
 
 No telemetry, no account, no bundled runtime.
 
 ## Known Limitations
 
-- Release builds are not yet Developer ID signed or notarized.
+- Preview builds are ad-hoc signed, but not yet Developer ID signed or notarized.
 - The App Sandbox is not enabled (see SECURITY.md).
 - BottleLite depends on an existing local Wine runtime and does not guarantee
   compatibility for every Windows application.

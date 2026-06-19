@@ -45,6 +45,9 @@ jobs:
       - name: Check shell syntax
         run: bash -n script/*.sh
 
+      - name: Validate release metadata
+        run: ./script/verify_release_metadata.sh
+
       - name: Install actionlint
         env:
           ACTIONLINT_VERSION: 1.7.12
@@ -130,33 +133,35 @@ jobs:
   package:
     name: Package smoke test
     runs-on: macos-15
-    timeout-minutes: 30
+    timeout-minutes: 40
     steps:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
-      - name: Build app bundle
+      - name: Build release DMG
         env:
           BOTTLELITE_BUILD: ${{ github.run_number }}
-        run: ./script/build_and_run.sh build-only
+        run: ./script/package_dmg.sh
 
-      - name: Verify bundle metadata
+      - name: Verify bundle and DMG metadata
         run: |
           set -euo pipefail
           plist="dist/BottleLite.app/Contents/Info.plist"
           version="$(tr -d '[:space:]' <VERSION)"
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$plist")" = "$version"
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$plist")" = "${{ github.run_number }}"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :SUFeedURL' "$plist")" = "https://github.com/jx-grxf/BottleLite/releases/latest/download/appcast.xml"
+          test -n "$(/usr/libexec/PlistBuddy -c 'Print :SUPublicEDKey' "$plist")"
           codesign --verify --deep --strict dist/BottleLite.app
+          hdiutil imageinfo "dist/BottleLite-${version}.dmg" >/dev/null
 
-      - name: Zip app bundle
-        run: ditto -c -k --keepParent dist/BottleLite.app dist/BottleLite-ci.zip
-
-      - name: Upload app bundle
+      - name: Upload smoke-test DMG
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: BottleLite-ci-app
-          path: dist/BottleLite-ci.zip
+          name: BottleLite-pr-dmg
+          path: |
+            dist/BottleLite-*.dmg
+            dist/BottleLite-*.dmg.sha256
           if-no-files-found: error
           retention-days: 7
 
