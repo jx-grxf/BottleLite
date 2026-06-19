@@ -33,17 +33,13 @@ struct ContentView: View {
         }
         .fileImporter(
             isPresented: $store.isImporterPresented,
-            allowedContentTypes: [.exeFile],
+            allowedContentTypes: UTType.importableWindowsFileTypes,
             allowsMultipleSelection: false
         ) { result in
             guard case let .success(urls) = result, let url = urls.first else {
                 return
             }
-            store.importExecutable(at: url)
+            store.openWindowsFile(at: url)
         }
     }
-}
-
-extension UTType {
-    static let exeFile = UTType(filenameExtension: "exe") ?? .data
 }

@@ -141,6 +141,24 @@ final class BottleStore: ObservableObject {
             : "\(program.name): \(validation.label)."
     }
 
+    func openWindowsFile(at url: URL) {
+        switch url.windowsFileKind {
+        case .executable:
+            importExecutable(at: url)
+        case .installerPackage:
+            if bottles.isEmpty {
+                createBottle(named: "Default Bottle")
+            }
+            guard let bottle = selectedBottle else {
+                lastMessage = "Create a bottle before running \(url.lastPathComponent)."
+                return
+            }
+            runInstaller(at: url, in: bottle)
+        case nil:
+            lastMessage = "BottleLite supports .exe and .msi files."
+        }
+    }
+
     // MARK: - Programs
 
     func run(_ program: WindowsProgram, in bottle: Bottle) {
@@ -445,7 +463,7 @@ final class BottleStore: ObservableObject {
 
         let panel = NSOpenPanel()
         panel.directoryURL = driveC
-        panel.allowedContentTypes = [.exeFile]
+        panel.allowedContentTypes = [.windowsExecutable]
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
         panel.prompt = "Add"

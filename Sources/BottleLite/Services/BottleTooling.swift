@@ -84,10 +84,16 @@ struct BottleTooling: BottleToolRunning {
         let prefixURL = try BottleStorage.prefixURL(for: bottle, using: fileManager)
         let process = Process()
         process.executableURL = URL(filePath: winePath)
-        process.arguments = [url.path]
+        process.arguments = Self.installerArguments(for: url)
         process.currentDirectoryURL = url.deletingLastPathComponent()
         process.environment = environment(prefixURL: prefixURL, winePath: winePath)
         try process.run()
+    }
+
+    static func installerArguments(for url: URL) -> [String] {
+        url.pathExtension.lowercased() == "msi"
+            ? ["msiexec", "/i", url.path]
+            : [url.path]
     }
 
     func installDependency(_ verb: WinetricksVerb, bottle: Bottle, winePath: String) throws {
