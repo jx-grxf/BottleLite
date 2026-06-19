@@ -1,3 +1,15 @@
+# BottleLite 0.1.1
+
+Packaging-only update for the first preview release.
+
+## Changes
+
+- Release DMGs now use a styled drag-to-Applications layout built with
+  `create-dmg`, including persisted Finder geometry, a volume icon, hidden app
+  extension, and a positioned Applications drop link.
+- CI and the GitHub Release workflow now install `create-dmg` and fail if the
+  styled DMG path falls back to a plain `hdiutil` image.
+
 # BottleLite 0.1.0
 
 First tagged preview of BottleLite — a lightweight, native macOS runner for
