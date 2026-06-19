@@ -30,7 +30,6 @@
   <!-- Rounded-square background -->
   <rect x="40" y="40" width="944" height="944" rx="232" ry="232" fill="url(#bg)"/>
   <rect x="40" y="40" width="944" height="944" rx="232" ry="232" fill="url(#bgGlow)"/>
-  <rect x="40" y="40" width="944" height="944" rx="232" ry="232" fill="none" stroke="#FFFFFF" stroke-opacity="0.35" stroke-width="3"/>
 
   <!-- Bottle -->
   <g filter="url(#soft)">
