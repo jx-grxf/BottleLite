@@ -23,7 +23,7 @@ struct HomebrewWineInstaller: WineInstalling, Sendable {
         try await Task.detached(priority: .userInitiated) {
             let brewPath = [
                 "/opt/homebrew/bin/brew",
-                "/usr/local/bin/brew"
+                "/usr/local/bin/brew",
             ].first { FileManager.default.isExecutableFile(atPath: $0) }
 
             guard let brewPath else {
@@ -34,23 +34,23 @@ struct HomebrewWineInstaller: WineInstalling, Sendable {
                 .appending(path: "BottleLite-Wine-Installer-\(UUID().uuidString).command")
 
             let script = """
-            #!/bin/zsh
-            clear
-            echo "BottleLite Wine installer"
-            echo "Type y if Homebrew asks to proceed."
-            echo "This may ask for your macOS password because Wine depends on system packages."
-            echo
-            \(shellEscaped(brewPath)) install --cask wine-stable
-            status=$?
-            echo
-            if [ "$status" -eq 0 ]; then
-              echo "Wine install finished. Go back to BottleLite and click Check Again."
-            else
-              echo "Wine install failed with exit code $status."
-            fi
-            echo
-            read -n 1 -s -r -p "Press any key to close this window..."
-            """
+                #!/bin/zsh
+                clear
+                echo "BottleLite Wine installer"
+                echo "Type y if Homebrew asks to proceed."
+                echo "This may ask for your macOS password because Wine depends on system packages."
+                echo
+                \(shellEscaped(brewPath)) install --cask wine-stable
+                status=$?
+                echo
+                if [ "$status" -eq 0 ]; then
+                  echo "Wine install finished. Go back to BottleLite and click Check Again."
+                else
+                  echo "Wine install failed with exit code $status."
+                fi
+                echo
+                read -n 1 -s -r -p "Press any key to close this window..."
+                """
 
             try script.write(to: scriptURL, atomically: true, encoding: .utf8)
             try FileManager.default.setAttributes(

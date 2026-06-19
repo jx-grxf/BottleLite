@@ -1,36 +1,52 @@
 import AppKit
 import Foundation
+import UniformTypeIdentifiers
 
 @MainActor
 final class BottleStore: ObservableObject {
-    @Published var bottles: [Bottle]
+    @Published var bottles: [Bottle] { didSet { persist() } }
     @Published var selection: Bottle.ID?
     @Published var runtimeStatus: RuntimeStatus = .unknown
     @Published var isImporterPresented = false
+    @Published var isInstallerImporterPresented = false
     @Published var isWineInstallPromptPresented = false
     @Published var wineInstallState: WineInstallState = .idle
     @Published var lastMessage = "Drop an .exe to begin."
+    @Published var presentedLog: PresentedLog?
+    @Published var installedPrograms: PresentedInstalledPrograms?
+    @Published var editingProgram: PresentedProgramEditor?
+    @Published private(set) var busyBottles: Set<Bottle.ID> = []
     @Published private(set) var runningPrograms: [WindowsProgram.ID: ProgramLaunch] = [:]
 
     private let runtimeProbe: WineRuntimeProbing
     private let programRunner: ProgramRunning
     private let wineInstaller: WineInstalling
+    private let repository: BottleStoring
+    private let tooling: BottleToolRunning
+    private var isLoaded = false
+    /// Held while at least one Game Mode program is running to keep macOS from
+    /// napping the app, sleeping the system, or coalescing timers.
+    private var gameActivityToken: NSObjectProtocol?
 
     init(
         runtimeProbe: WineRuntimeProbing = WineRuntimeProbe(),
         programRunner: ProgramRunning = WineProgramRunner(),
-        wineInstaller: WineInstalling = HomebrewWineInstaller()
+        wineInstaller: WineInstalling = HomebrewWineInstaller(),
+        repository: BottleStoring = BottleRepository(),
+        tooling: BottleToolRunning = BottleTooling()
     ) {
         self.runtimeProbe = runtimeProbe
         self.programRunner = programRunner
         self.wineInstaller = wineInstaller
-        self.bottles = [
-            Bottle(
-                name: "Default Bottle",
-                programs: []
-            )
-        ]
+        self.repository = repository
+        self.tooling = tooling
+
+        let stored = repository.load()
+        self.bottles = stored.isEmpty ? [Bottle(name: "Default Bottle")] : stored
         self.selection = bottles.first?.id
+        self.isLoaded = true
+        if stored.isEmpty { persist() }
+
         refreshRuntime()
     }
 
@@ -39,13 +55,21 @@ final class BottleStore: ObservableObject {
         return bottles.first { $0.id == selection }
     }
 
+    var winetricksAvailable: Bool {
+        tooling.winetricksPath != nil
+    }
+
+    // MARK: - Runtime
+
     func refreshRuntime() {
         runtimeStatus = runtimeProbe.detectRuntime()
         if runtimeStatus.state == .ready, wineInstallState.isBusy {
             wineInstallState = .idle
-            lastMessage = "Wine runtime detected."
+            lastMessage = "\(runtimeStatus.displayName) is ready."
         }
     }
+
+    // MARK: - Bottles
 
     func createBottle(named name: String = "New Bottle") {
         let uniqueName = nextAvailableName(base: name)
@@ -55,13 +79,41 @@ final class BottleStore: ObservableObject {
         lastMessage = "Created \(uniqueName)."
     }
 
+    func renameBottle(_ bottle: Bottle, to newName: String) {
+        let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+            let index = bottles.firstIndex(where: { $0.id == bottle.id }),
+            bottles[index].name != trimmed
+        else { return }
+
+        bottles[index].name = trimmed
+        lastMessage = "Renamed bottle to \(trimmed)."
+    }
+
+    /// Removes a bottle record and moves its on-disk prefix to the Trash so the
+    /// action is recoverable rather than a hard delete.
+    func deleteBottle(_ bottle: Bottle) {
+        for program in bottle.programs where isRunning(program) {
+            stop(program)
+        }
+
+        if let prefixURL = try? BottleStorage.prefixURL(for: bottle) {
+            try? FileManager.default.trashItem(at: prefixURL, resultingItemURL: nil)
+        }
+
+        bottles.removeAll { $0.id == bottle.id }
+        if selection == bottle.id {
+            selection = bottles.first?.id
+        }
+        lastMessage = "Deleted \(bottle.name)."
+    }
+
     func importExecutable(at url: URL) {
-        let validation = ExecutableInspector.validate(url)
-        let program = WindowsProgram(
-            name: url.deletingPathExtension().lastPathComponent,
-            path: url.path,
-            validation: validation
-        )
+        let needsScopedAccess = url.startAccessingSecurityScopedResource()
+        defer { if needsScopedAccess { url.stopAccessingSecurityScopedResource() } }
+
+        let program = makeProgram(from: url)
+        let validation = program.validation
 
         if bottles.isEmpty {
             createBottle(named: "Default Bottle")
@@ -72,12 +124,22 @@ final class BottleStore: ObservableObject {
             return
         }
 
+        // Avoid silently importing the same executable into a bottle twice.
+        guard !bottles[index].programs.contains(where: { $0.path == program.path }) else {
+            selection = bottles[index].id
+            lastMessage = "\(program.name) is already in \(bottles[index].name)."
+            return
+        }
+
         bottles[index].programs.insert(program, at: 0)
         selection = bottles[index].id
-        lastMessage = validation == .valid
+        lastMessage =
+            validation == .valid
             ? "Imported \(program.name)."
             : "\(program.name): \(validation.label)."
     }
+
+    // MARK: - Programs
 
     func run(_ program: WindowsProgram, in bottle: Bottle) {
         guard program.validation == .valid else {
@@ -93,20 +155,37 @@ final class BottleStore: ObservableObject {
             return
         }
 
+        // Console tools have no window — run them in Terminal so output shows.
+        if program.runsInTerminal {
+            do {
+                try tooling.runInTerminal(program: program, bottle: bottle, winePath: winePath)
+                lastMessage = "Opened \(program.name) in Terminal."
+            } catch {
+                lastMessage = "Could not open \(program.name): \(error.localizedDescription)"
+            }
+            return
+        }
+
         do {
             let launch = try programRunner.launch(
                 program: program,
                 bottle: bottle,
-                winePath: winePath
+                winePath: winePath,
+                gameMode: bottle.gameMode
             ) { [weak self] termination in
                 Task { @MainActor in
                     self?.runningPrograms.removeValue(forKey: program.id)
+                    self?.updatePowerAssertion()
                     self?.lastMessage = termination.message(for: program.name)
                 }
             }
 
             runningPrograms[program.id] = launch
-            lastMessage = "Started \(program.name) with pid \(launch.processID)."
+            updatePowerAssertion()
+            lastMessage =
+                bottle.gameMode
+                ? "Started \(program.name) in Game Mode."
+                : "Started \(program.name)."
         } catch {
             runningPrograms.removeValue(forKey: program.id)
             lastMessage = "Could not start \(program.name): \(error.localizedDescription)"
@@ -122,6 +201,7 @@ final class BottleStore: ObservableObject {
         do {
             try programRunner.stop(launch)
             runningPrograms.removeValue(forKey: program.id)
+            updatePowerAssertion()
             lastMessage = "Stopped \(program.name)."
         } catch {
             lastMessage = "Could not stop \(program.name): \(error.localizedDescription)"
@@ -130,6 +210,84 @@ final class BottleStore: ObservableObject {
 
     func isRunning(_ program: WindowsProgram) -> Bool {
         runningPrograms[program.id] != nil
+    }
+
+    var hasRunningPrograms: Bool {
+        !runningPrograms.isEmpty
+    }
+
+    /// Stops every running program and hard-kills the affected prefixes so no
+    /// Wine process is orphaned. Used by the "Stop All" command and on app quit
+    /// (otherwise quitting BottleLite leaves the game running in the background).
+    func terminateAllPrograms() {
+        guard !runningPrograms.isEmpty else { return }
+
+        for launch in runningPrograms.values {
+            try? programRunner.stop(launch)
+        }
+
+        if let winePath = runtimeStatus.winePath {
+            let activeBottles = bottles.filter { bottle in
+                bottle.programs.contains { runningPrograms[$0.id] != nil }
+            }
+            for bottle in activeBottles {
+                tooling.terminatePrefix(bottle: bottle, winePath: winePath)
+            }
+        }
+
+        let count = runningPrograms.count
+        runningPrograms.removeAll()
+        updatePowerAssertion()
+        lastMessage = count == 1 ? "Stopped 1 program." : "Stopped \(count) programs."
+    }
+
+    /// Toggles Game Mode for a bottle (performance env + power assertion on its
+    /// program launches). Re-evaluates the power assertion immediately so it
+    /// applies to anything already running.
+    func toggleGameMode(for bottle: Bottle) {
+        guard let index = bottles.firstIndex(where: { $0.id == bottle.id }) else { return }
+        bottles[index].gameMode.toggle()
+        let enabled = bottles[index].gameMode
+        updatePowerAssertion()
+        lastMessage =
+            enabled
+            ? "Game Mode on for \(bottles[index].name). Restart running programs to apply."
+            : "Game Mode off for \(bottles[index].name)."
+    }
+
+    func isGameMode(_ bottle: Bottle) -> Bool {
+        bottles.first { $0.id == bottle.id }?.gameMode ?? false
+    }
+
+    func editProgram(_ program: WindowsProgram, in bottle: Bottle) {
+        editingProgram = PresentedProgramEditor(
+            bottleID: bottle.id,
+            programID: program.id,
+            name: program.name,
+            arguments: program.arguments,
+            runsInTerminal: program.runsInTerminal
+        )
+    }
+
+    /// Applies edited name/arguments back to the stored program.
+    func updateProgram(
+        _ programID: WindowsProgram.ID,
+        in bottleID: Bottle.ID,
+        name: String,
+        arguments: String,
+        runsInTerminal: Bool
+    ) {
+        guard let bottleIndex = bottles.firstIndex(where: { $0.id == bottleID }),
+            let programIndex = bottles[bottleIndex].programs.firstIndex(where: { $0.id == programID })
+        else { return }
+
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedName.isEmpty {
+            bottles[bottleIndex].programs[programIndex].name = trimmedName
+        }
+        bottles[bottleIndex].programs[programIndex].arguments = arguments.trimmingCharacters(in: .whitespaces)
+        bottles[bottleIndex].programs[programIndex].runsInTerminal = runsInTerminal
+        lastMessage = "Updated \(bottles[bottleIndex].programs[programIndex].name)."
     }
 
     func remove(_ program: WindowsProgram, from bottle: Bottle) {
@@ -156,6 +314,144 @@ final class BottleStore: ObservableObject {
         lastMessage = "Copied \(program.name) path."
     }
 
+    /// The log file capturing a program's most recent run, if one exists.
+    func existingLogURL(for program: WindowsProgram, in bottle: Bottle) -> URL? {
+        guard let url = try? BottleStorage.logURL(for: program, in: bottle),
+            FileManager.default.fileExists(atPath: url.path)
+        else { return nil }
+        return url
+    }
+
+    // MARK: - Bottle tooling
+
+    func openConfiguration(for bottle: Bottle) {
+        withWinePath(action: "open Wine configuration") { winePath in
+            try tooling.openConfiguration(bottle: bottle, winePath: winePath)
+            lastMessage = "Opening Wine configuration for \(bottle.name)..."
+        }
+    }
+
+    func initializePrefix(for bottle: Bottle) {
+        guard !busyBottles.contains(bottle.id) else { return }
+        withWinePath(action: "initialize the prefix") { winePath in
+            busyBottles.insert(bottle.id)
+            lastMessage = "Initializing \(bottle.name)..."
+            Task {
+                defer { busyBottles.remove(bottle.id) }
+                do {
+                    try await tooling.initializePrefix(bottle: bottle, winePath: winePath)
+                    lastMessage = "\(bottle.name) is ready."
+                } catch {
+                    lastMessage = "Could not initialize \(bottle.name): \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+
+    func isBusy(_ bottle: Bottle) -> Bool {
+        busyBottles.contains(bottle.id)
+    }
+
+    /// Presents the captured log for a program if one exists on disk.
+    func showLog(for program: WindowsProgram, in bottle: Bottle) {
+        guard let url = existingLogURL(for: program, in: bottle) else {
+            lastMessage = "No log yet for \(program.name). Run it first."
+            return
+        }
+        presentedLog = PresentedLog(title: program.name, url: url)
+    }
+
+    func runInstaller(at url: URL, in bottle: Bottle) {
+        withWinePath(action: "run an installer") { winePath in
+            try tooling.runInstaller(at: url, bottle: bottle, winePath: winePath)
+            lastMessage = "Running \(url.lastPathComponent) in \(bottle.name)..."
+        }
+    }
+
+    func installDependency(_ verb: WinetricksVerb, in bottle: Bottle) {
+        withWinePath(action: "install \(verb.title)") { winePath in
+            try tooling.installDependency(verb, bottle: bottle, winePath: winePath)
+            lastMessage = "Installing \(verb.title) into \(bottle.name)..."
+        }
+    }
+
+    func revealDriveC(for bottle: Bottle) {
+        guard let driveC = try? BottleStorage.driveCURL(for: bottle) else { return }
+        if !FileManager.default.fileExists(atPath: driveC.path) {
+            lastMessage = "Initialize \(bottle.name) first to create its C: drive."
+            return
+        }
+        NSWorkspace.shared.activateFileViewerSelecting([driveC])
+        lastMessage = "Revealed the C: drive for \(bottle.name)."
+    }
+
+    // MARK: - Installed programs
+
+    /// Scans the bottle's prefix for installed executables and presents them so
+    /// the user can add the actual game/app after an installer has run.
+    func presentInstalledPrograms(for bottle: Bottle) {
+        guard let driveC = try? BottleStorage.driveCURL(for: bottle),
+            FileManager.default.fileExists(atPath: driveC.path)
+        else {
+            lastMessage = "Initialize \(bottle.name) and run an installer first."
+            return
+        }
+        let candidates = InstalledProgramScanner.scan(bottle: bottle)
+        installedPrograms = PresentedInstalledPrograms(
+            bottleID: bottle.id,
+            bottleName: bottle.name,
+            candidates: candidates
+        )
+    }
+
+    /// Adds an executable that already exists inside the prefix (or anywhere on
+    /// disk) as a program in the given bottle.
+    @discardableResult
+    func addProgram(at url: URL, to bottleID: Bottle.ID) -> Bool {
+        guard let index = bottles.firstIndex(where: { $0.id == bottleID }) else { return false }
+        let name = url.deletingPathExtension().lastPathComponent
+
+        guard !bottles[index].programs.contains(where: { $0.path == url.path }) else {
+            lastMessage = "\(name) is already in \(bottles[index].name)."
+            return false
+        }
+
+        let program = makeProgram(from: url)
+        bottles[index].programs.insert(program, at: 0)
+        selection = bottleID
+        lastMessage = "Added \(name) to \(bottles[index].name)."
+        return true
+    }
+
+    func isProgramAdded(_ url: URL, in bottleID: Bottle.ID) -> Bool {
+        bottles.first { $0.id == bottleID }?.programs.contains { $0.path == url.path } ?? false
+    }
+
+    /// Opens an Open panel rooted at the bottle's C: drive so the user can pick an
+    /// installed executable the scanner missed.
+    func browseForInstalledProgram(in bottle: Bottle) {
+        guard let driveC = try? BottleStorage.driveCURL(for: bottle),
+            FileManager.default.fileExists(atPath: driveC.path)
+        else {
+            lastMessage = "Initialize \(bottle.name) and run an installer first."
+            return
+        }
+
+        let panel = NSOpenPanel()
+        panel.directoryURL = driveC
+        panel.allowedContentTypes = [.exeFile]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.prompt = "Add"
+        panel.message = "Choose the installed .exe inside \(bottle.name)"
+
+        if panel.runModal() == .OK, let url = panel.url {
+            addProgram(at: url, to: bottle.id)
+        }
+    }
+
+    // MARK: - Wine install
+
     func promptWineInstall() {
         isWineInstallPromptPresented = true
     }
@@ -181,10 +477,65 @@ final class BottleStore: ObservableObject {
 
         if runtimeStatus.state == .ready {
             wineInstallState = .idle
-            lastMessage = "Wine runtime detected."
+            lastMessage = "\(runtimeStatus.displayName) is ready."
         } else {
-            wineInstallState = .failed("Wine is still missing. Finish the Terminal installer, then check again.")
+            wineInstallState = .failed(
+                "Wine is still missing. Finish the Terminal installer, then check again.")
             lastMessage = "Wine is still missing."
+        }
+    }
+
+    // MARK: - Helpers
+
+    private func withWinePath(action: String, _ body: (String) throws -> Void) {
+        refreshRuntime()
+        guard let winePath = runtimeStatus.winePath else {
+            lastMessage = "Install Wine first to \(action)."
+            isWineInstallPromptPresented = true
+            return
+        }
+        do {
+            try body(winePath)
+        } catch {
+            lastMessage = "Could not \(action): \(error.localizedDescription)"
+        }
+    }
+
+    private func persist() {
+        guard isLoaded else { return }
+        repository.save(bottles)
+    }
+
+    private func makeProgram(from url: URL) -> WindowsProgram {
+        let validation = ExecutableInspector.validate(url)
+        let subsystem = validation == .valid ? ExecutableInspector.subsystem(of: url) : .unknown
+
+        return WindowsProgram(
+            name: url.deletingPathExtension().lastPathComponent,
+            path: url.path,
+            validation: validation,
+            runsInTerminal: subsystem == .console
+        )
+    }
+
+    /// Begins or ends the macOS activity assertion based on whether any running
+    /// program belongs to a Game Mode bottle.
+    private func updatePowerAssertion() {
+        let gameModeBottleIDs = Set(bottles.filter(\.gameMode).map(\.id))
+        let needsAssertion =
+            bottles
+            .filter { gameModeBottleIDs.contains($0.id) }
+            .flatMap(\.programs)
+            .contains { runningPrograms[$0.id] != nil }
+
+        if needsAssertion, gameActivityToken == nil {
+            gameActivityToken = ProcessInfo.processInfo.beginActivity(
+                options: [.userInitiated, .idleSystemSleepDisabled, .latencyCritical],
+                reason: "BottleLite Game Mode"
+            )
+        } else if !needsAssertion, let token = gameActivityToken {
+            ProcessInfo.processInfo.endActivity(token)
+            gameActivityToken = nil
         }
     }
 
@@ -198,4 +549,30 @@ final class BottleStore: ObservableObject {
         }
         return "\(base) \(suffix)"
     }
+}
+
+/// Identifies a log file to present in the log viewer sheet.
+struct PresentedLog: Identifiable, Equatable {
+    let id = UUID()
+    let title: String
+    let url: URL
+}
+
+/// Backs the "Add Installed Program" sheet: the bottle plus the executables the
+/// scanner found inside its prefix.
+struct PresentedInstalledPrograms: Identifiable, Equatable {
+    let id = UUID()
+    let bottleID: Bottle.ID
+    let bottleName: String
+    let candidates: [FoundExecutable]
+}
+
+/// Backs the program settings sheet (rename + launch arguments).
+struct PresentedProgramEditor: Identifiable, Equatable {
+    let id = UUID()
+    let bottleID: Bottle.ID
+    let programID: WindowsProgram.ID
+    var name: String
+    var arguments: String
+    var runsInTerminal: Bool
 }

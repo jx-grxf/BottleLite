@@ -6,20 +6,183 @@ on:
   pull_request:
     branches: [main]
 
-jobs:
-  build:
-    name: Build and Test
-    runs-on: macos-15
+permissions:
+  contents: read
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  hygiene:
+    name: Hygiene
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 0
 
-      - name: Show Swift Version
-        run: swift --version
+      - name: Check whitespace
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          if [[ -n "$PR_BASE_SHA" ]]; then
+            git diff --check "$PR_BASE_SHA"...HEAD
+          elif [[ -n "$PUSH_BEFORE_SHA" && ! "$PUSH_BEFORE_SHA" =~ ^0+$ ]]; then
+            git diff --check "$PUSH_BEFORE_SHA" HEAD
+          else
+            git diff --check HEAD^ || true
+          fi
+
+      - name: Check shell syntax
+        run: bash -n script/*.sh
+
+      - name: Install actionlint
+        env:
+          ACTIONLINT_VERSION: 1.7.12
+          ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+        run: |
+          set -euo pipefail
+          archive="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          curl -fsSLO "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/${archive}"
+          echo "${ACTIONLINT_SHA256}  ${archive}" | sha256sum --check
+          tar -xzf "$archive" actionlint
+          sudo install -m 0755 actionlint /usr/local/bin/actionlint
+
+      - name: Lint GitHub Actions
+        run: actionlint
+
+      - name: Lint shell scripts
+        run: shellcheck script/*.sh
+
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 0
+
+      - name: Install Gitleaks
+        env:
+          GITLEAKS_VERSION: 8.30.1
+          GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+        run: |
+          set -euo pipefail
+          archive="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl -fsSLO "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/${archive}"
+          echo "${GITLEAKS_SHA256}  ${archive}" | sha256sum --check
+          tar -xzf "$archive" gitleaks
+          sudo install -m 0755 gitleaks /usr/local/bin/gitleaks
+
+      - name: Scan repository history
+        run: gitleaks git --redact --verbose .
+
+  dependency-review:
+    name: Dependency review
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Review dependency changes
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: high
+
+  tests:
+    name: Build and Test
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Show toolchain
+        run: |
+          sw_vers
+          swift --version
+
+      - name: Install swift-format
+        run: brew install swift-format
+
+      - name: Lint formatting
+        run: swift-format lint --configuration .swift-format --recursive --strict Sources Tests
 
       - name: Build
         run: swift build
 
       - name: Test
         run: swift test
+
+  package:
+    name: Package smoke test
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Build app bundle
+        env:
+          BOTTLELITE_BUILD: ${{ github.run_number }}
+        run: ./script/build_and_run.sh build-only
+
+      - name: Verify bundle metadata
+        run: |
+          set -euo pipefail
+          plist="dist/BottleLite.app/Contents/Info.plist"
+          version="$(tr -d '[:space:]' <VERSION)"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$plist")" = "$version"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$plist")" = "${{ github.run_number }}"
+          codesign --verify --deep --strict dist/BottleLite.app
+
+      - name: Zip app bundle
+        run: ditto -c -k --keepParent dist/BottleLite.app dist/BottleLite-ci.zip
+
+      - name: Upload app bundle
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: BottleLite-ci-app
+          path: dist/BottleLite-ci.zip
+          if-no-files-found: error
+          retention-days: 7
+
+  build:
+    name: build
+    # Aggregate gate for branch protection: require a single `build` check.
+    # Reports green only when every job above passed (or was legitimately
+    # skipped, e.g. dependency-review on pushes).
+    needs: [hygiene, secrets, dependency-review, tests, package]
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Confirm required jobs passed
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          set -euo pipefail
+          echo "Upstream job results: $RESULTS"
+          for result in $RESULTS; do
+            case "$result" in
+              success | skipped) ;;
+              *)
+                echo "error: a required CI job reported '$result'" >&2
+                exit 1
+                ;;
+            esac
+          done
+          echo "All required CI jobs passed."

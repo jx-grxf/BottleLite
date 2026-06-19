@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct SettingsView: View {
@@ -6,14 +7,47 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
-            Toggle("Refresh Wine runtime status on launch", isOn: $autoRefreshRuntime)
+            Section("Wine Runtime") {
+                LabeledContent("Status", value: store.runtimeStatus.displayName)
+                if let path = store.runtimeStatus.winePath {
+                    LabeledContent("Path") {
+                        Text(path)
+                            .font(.caption.monospaced())
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                }
+                LabeledContent("winetricks", value: store.winetricksAvailable ? "Installed" : "Not installed")
 
-            Button("Refresh Now") {
-                store.refreshRuntime()
+                Toggle("Refresh runtime status on launch", isOn: $autoRefreshRuntime)
+
+                Button("Refresh Now") {
+                    store.refreshRuntime()
+                }
+            }
+
+            Section("Storage") {
+                Button("Reveal Bottle Data in Finder") {
+                    if let url = try? BottleStorage.supportDirectory() {
+                        NSWorkspace.shared.activateFileViewerSelecting([url])
+                    }
+                }
+            }
+
+            Section("About") {
+                LabeledContent("Version", value: Self.appVersion)
+                Link("BottleLite on GitHub", destination: BottleLiteApp.repositoryURL)
             }
         }
         .formStyle(.grouped)
-        .padding(24)
-        .frame(width: 420)
+        .frame(width: 460)
+    }
+
+    private static var appVersion: String {
+        let info = Bundle.main.infoDictionary
+        let short = info?["CFBundleShortVersionString"] as? String ?? "dev"
+        let build = info?["CFBundleVersion"] as? String
+        return build.map { "\(short) (\($0))" } ?? short
     }
 }
