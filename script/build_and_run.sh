@@ -32,12 +32,25 @@ cd "$ROOT_DIR"
 # the git commit count so each commit produces a monotonically rising build.
 APP_VERSION="${BOTTLELITE_VERSION:-$(tr -d '[:space:]' <VERSION 2>/dev/null || echo 0.0.0)}"
 APP_BUILD="${BOTTLELITE_BUILD:-$(git rev-list --count HEAD 2>/dev/null || echo 1)}"
+CONFIGURATION="${BOTTLELITE_CONFIGURATION:-debug}"
 COPYRIGHT="Copyright © $(date +%Y) Johannes Grof. MIT licensed."
 
 pkill -x "$APP_NAME" >/dev/null 2>&1 || true
 
-swift build
-BUILD_BINARY="$(swift build --show-bin-path)/$APP_NAME"
+case "$CONFIGURATION" in
+  debug)
+    swift build
+    BUILD_BINARY="$(swift build --show-bin-path)/$APP_NAME"
+    ;;
+  release)
+    swift build -c release
+    BUILD_BINARY="$(swift build -c release --show-bin-path)/$APP_NAME"
+    ;;
+  *)
+    echo "error: BOTTLELITE_CONFIGURATION must be 'debug' or 'release'" >&2
+    exit 2
+    ;;
+esac
 
 rm -rf "$APP_BUNDLE"
 mkdir -p "$APP_MACOS" "$APP_RESOURCES"
@@ -83,12 +96,12 @@ cat >"$INFO_PLIST" <<PLIST
 </plist>
 PLIST
 
-# Ad-hoc sign with the hardened runtime so local builds behave like a release
-# build (Gatekeeper, library validation). Real Developer ID signing happens in
-# the release pipeline.
-codesign --force --sign - --options runtime --timestamp=none "$APP_BUNDLE" >/dev/null 2>&1 || true
+# Ad-hoc sign with the hardened runtime so local builds behave like a preview
+# release build (Gatekeeper, library validation). Real Developer ID signing is a
+# future distribution step; this command must still succeed for packaged DMGs.
+codesign --force --sign - --options runtime --timestamp=none "$APP_BUNDLE" >/dev/null
 
-echo "Built $APP_BUNDLE ($APP_VERSION build $APP_BUILD)"
+echo "Built $APP_BUNDLE ($APP_VERSION build $APP_BUILD, $CONFIGURATION)"
 
 open_app() {
   /usr/bin/open -n "$APP_BUNDLE"

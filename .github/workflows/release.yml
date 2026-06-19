@@ -36,6 +36,14 @@ jobs:
           fi
           echo "version=$tag" >>"$GITHUB_OUTPUT"
 
+      - name: Show toolchain
+        run: |
+          sw_vers
+          swift --version
+
+      - name: Test
+        run: swift test
+
       - name: Build DMG
         env:
           BOTTLELITE_VERSION: ${{ steps.version.outputs.version }}
@@ -54,5 +62,6 @@ jobs:
           fi
           gh release create "$GITHUB_REF_NAME" \
             "dist/BottleLite-${VERSION}.dmg" \
+            "dist/BottleLite-${VERSION}.dmg.sha256" \
             --title "BottleLite ${VERSION}" \
             "${notes_args[@]}"

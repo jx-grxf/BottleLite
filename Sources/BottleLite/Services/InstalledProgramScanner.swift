@@ -29,7 +29,8 @@ enum InstalledProgramScanner {
     static func scan(
         bottle: Bottle, fileManager: FileManager = .default, limit: Int = 250
     ) -> [FoundExecutable] {
-        guard let driveC = try? BottleStorage.driveCURL(for: bottle, using: fileManager) else { return [] }
+        guard let driveC = try? BottleStorage.driveCURL(for: bottle, using: fileManager, create: false)
+        else { return [] }
         return scan(driveC: driveC, fileManager: fileManager, limit: limit)
     }
 

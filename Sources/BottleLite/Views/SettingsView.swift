@@ -3,7 +3,6 @@ import SwiftUI
 
 struct SettingsView: View {
     @ObservedObject var store: BottleStore
-    @AppStorage("autoRefreshRuntime") private var autoRefreshRuntime = true
 
     var body: some View {
         Form {
@@ -19,8 +18,6 @@ struct SettingsView: View {
                     }
                 }
                 LabeledContent("winetricks", value: store.winetricksAvailable ? "Installed" : "Not installed")
-
-                Toggle("Refresh runtime status on launch", isOn: $autoRefreshRuntime)
 
                 Button("Refresh Now") {
                     store.refreshRuntime()
