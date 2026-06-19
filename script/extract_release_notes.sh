@@ -8,7 +8,10 @@ VERSION="${1:?usage: extract_release_notes.sh VERSION OUTPUT}"
 OUTPUT="${2:?usage: extract_release_notes.sh VERSION OUTPUT}"
 
 awk -v version="$VERSION" '
-  NR == 1 && $1 == "#" && $2 == "BottleLite" && $3 == version { found = 1 }
+  $1 == "#" && $2 == "BottleLite" {
+    if (found) exit
+    if ($3 == version) found = 1
+  }
   found { print }
   END { if (!found) exit 1 }
 ' RELEASE_NOTES.md >"$OUTPUT"
