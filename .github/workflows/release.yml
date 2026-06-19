@@ -138,7 +138,7 @@ jobs:
           swift --version
 
       - name: Install tools
-        run: brew install swift-format
+        run: brew install swift-format shellcheck
 
       - name: Lint and test tagged source
         run: |
