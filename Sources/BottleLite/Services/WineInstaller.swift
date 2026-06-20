@@ -20,6 +20,39 @@ enum WineInstallError: LocalizedError {
 
 struct HomebrewWineInstaller: WineInstalling, Sendable {
     func openInstaller() async throws {
+        try await HomebrewInstall.openInTerminal(
+            title: "BottleLite Wine installer",
+            note: "This may ask for your macOS password because Wine depends on system packages.",
+            brewCommand: "install --cask wine-stable",
+            doneNote: "Wine install finished. Go back to BottleLite and click Check Again."
+        )
+    }
+}
+
+protocol WinetricksInstalling: Sendable {
+    func openInstaller() async throws
+}
+
+struct HomebrewWinetricksInstaller: WinetricksInstalling, Sendable {
+    func openInstaller() async throws {
+        try await HomebrewInstall.openInTerminal(
+            title: "BottleLite winetricks installer",
+            note: "winetricks installs common Windows components (fonts, runtimes, DirectX) into a bottle.",
+            brewCommand: "install winetricks",
+            doneNote: "winetricks installed. Go back to BottleLite and try the dependency again."
+        )
+    }
+}
+
+/// Shared helper that runs a `brew` command in a Terminal window so the user can
+/// answer Homebrew's interactive prompts (EULAs, sudo password).
+private enum HomebrewInstall {
+    static func openInTerminal(
+        title: String,
+        note: String,
+        brewCommand: String,
+        doneNote: String
+    ) async throws {
         try await Task.detached(priority: .userInitiated) {
             let brewPath = [
                 "/opt/homebrew/bin/brew",
@@ -31,22 +64,22 @@ struct HomebrewWineInstaller: WineInstalling, Sendable {
             }
 
             let scriptURL = FileManager.default.temporaryDirectory
-                .appending(path: "BottleLite-Wine-Installer-\(UUID().uuidString).command")
+                .appending(path: "BottleLite-Installer-\(UUID().uuidString).command")
 
             let script = """
                 #!/bin/zsh
                 clear
-                echo "BottleLite Wine installer"
+                echo "\(title)"
                 echo "Type y if Homebrew asks to proceed."
-                echo "This may ask for your macOS password because Wine depends on system packages."
+                echo "\(note)"
                 echo
-                \(shellEscaped(brewPath)) install --cask wine-stable
+                \(shellEscaped(brewPath)) \(brewCommand)
                 status=$?
                 echo
                 if [ "$status" -eq 0 ]; then
-                  echo "Wine install finished. Go back to BottleLite and click Check Again."
+                  echo "\(doneNote)"
                 else
-                  echo "Wine install failed with exit code $status."
+                  echo "Install failed with exit code $status."
                 fi
                 echo
                 read -n 1 -s -r -p "Press any key to close this window..."

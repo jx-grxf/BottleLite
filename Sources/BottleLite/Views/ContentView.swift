@@ -17,18 +17,21 @@ struct ContentView: View {
                 } label: {
                     Label("Refresh Runtime", systemImage: "arrow.clockwise")
                 }
+                .help("Re-check which Wine runtime is installed")
 
                 Button {
                     store.createBottle()
                 } label: {
                     Label("New Bottle", systemImage: "plus")
                 }
+                .help("Create a new isolated Windows environment")
 
                 Button {
                     store.isImporterPresented = true
                 } label: {
-                    Label("Import EXE", systemImage: "square.and.arrow.down")
+                    Label("Import App", systemImage: "square.and.arrow.down")
                 }
+                .help("Add a Windows app (.exe) or installer (.msi) to the selected bottle")
             }
         }
         .fileImporter(
