@@ -342,6 +342,41 @@ final class BottleStore: ObservableObject {
         lastMessage = "Copied \(program.name) path."
     }
 
+    /// Copies a paste-ready diagnostic report (system + Wine + bottle + last 100
+    /// log lines) to the clipboard so users can file actionable GitHub issues.
+    func copyDiagnosticReport(for bottle: Bottle?, program: WindowsProgram?) {
+        let system = DiagnosticReport.systemInfo()
+        var logLines: [String] = []
+        if let bottle, let program, let logURL = existingLogURL(for: program, in: bottle) {
+            logLines = DiagnosticReport.tailLines(ofFileAt: logURL, limit: 100)
+        }
+
+        let info = DiagnosticInfo(
+            appVersion: Self.appVersionString,
+            macOSVersion: system.macOSVersion,
+            macModel: system.macModel,
+            cpuArchitecture: system.cpuArchitecture,
+            wineVersion: runtimeStatus.version,
+            winetricksInstalled: winetricksAvailable,
+            bottleName: bottle?.name,
+            gameMode: bottle?.gameMode,
+            programName: program?.name,
+            programPath: program?.path,
+            lastLogLines: logLines
+        )
+
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(DiagnosticReport.format(info), forType: .string)
+        lastMessage = "Copied a diagnostic report to the clipboard. Paste it into your GitHub issue."
+    }
+
+    private static var appVersionString: String {
+        let info = Bundle.main.infoDictionary
+        let short = info?["CFBundleShortVersionString"] as? String ?? "dev"
+        let build = info?["CFBundleVersion"] as? String
+        return build.map { "\(short) (\($0))" } ?? short
+    }
+
     /// Creates a native macOS `.app` launcher for a program (with its real
     /// Windows icon) on the Desktop or in ~/Applications/BottleLite, then reveals
     /// it. Replaces the unusable `.desktop`/`.lnk` files Wine would otherwise drop.

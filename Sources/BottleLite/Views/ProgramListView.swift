@@ -196,6 +196,12 @@ private struct ProgramRowView: View {
                 Label("Copy Path", systemImage: "doc.on.doc")
             }
 
+            Button {
+                store.copyDiagnosticReport(for: bottle, program: program)
+            } label: {
+                Label("Copy Diagnostic Report", systemImage: "stethoscope")
+            }
+
             if let bottle {
                 Divider()
                 launcherMenu(for: bottle)
@@ -261,6 +267,12 @@ private struct ProgramRowView: View {
             store.copyPath(program)
         } label: {
             Label("Copy Path", systemImage: "doc.on.doc")
+        }
+
+        Button {
+            store.copyDiagnosticReport(for: bottle, program: program)
+        } label: {
+            Label("Copy Diagnostic Report", systemImage: "stethoscope")
         }
 
         if let bottle {
