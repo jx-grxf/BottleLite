@@ -153,12 +153,12 @@ struct BottleTooling: BottleToolRunning {
             echo
             \(exports)
             \(shellEscaped(winetricksPath)) --unattended \(shellEscaped(verb.verb))
-            status=$?
+            rc=$?
             echo
-            if [ "$status" -eq 0 ]; then
+            if [ "$rc" -eq 0 ]; then
               echo "\(verb.title) installed. You can close this window."
             else
-              echo "winetricks exited with code $status."
+              echo "winetricks exited with code $rc."
             fi
             read -n 1 -s -r -p "Press any key to close this window..."
             """
@@ -210,9 +210,9 @@ struct BottleTooling: BottleToolRunning {
             \(exports)
             cd \(shellEscaped(workingDir.path))
             \(command)
-            status=$?
+            rc=$?
             echo
-            echo "\(program.name) exited with code $status."
+            echo "\(program.name) exited with code $rc."
             read -n 1 -s -r -p "Press any key to close this window..."
             """
 

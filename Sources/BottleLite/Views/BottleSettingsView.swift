@@ -83,9 +83,20 @@ struct BottleSettingsView: View {
             }
 
             if store.graphicsBackend(for: bottle) == .d3dMetal, !GraphicsBackend.isD3DMetalAvailable {
-                description(
-                    "⚠︎ Game Porting Toolkit not detected. D3DMetal needs a GPTK Wine build; "
-                        + "until then this falls back to the built-in renderer.")
+                HStack(alignment: .firstTextBaseline) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Game Porting Toolkit")
+                        description(
+                            "Not detected. D3DMetal needs Apple's GPTK (a large, advanced install). "
+                                + "Until then this falls back to the built-in renderer.")
+                    }
+                    Spacer()
+                    if store.isInstallingGPTK {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Button("Install…") { Task { await store.installGamePortingToolkit() } }
+                    }
+                }
             }
         } header: {
             Text("Graphics")

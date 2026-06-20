@@ -9,15 +9,22 @@ enum GamingRuntime {
     static let brewPrefixes = ["/opt/homebrew", "/usr/local"]
 
     /// Path to the MoltenVK ICD manifest if it's installed (e.g. via
-    /// `brew install molten-vk`), else nil.
+    /// `brew install molten-vk`), else nil. Homebrew puts it under `etc/`.
     static var moltenVKICD: String? {
         firstExisting([
+            "/etc/vulkan/icd.d/MoltenVK_icd.json",
+            "/opt/molten-vk/etc/vulkan/icd.d/MoltenVK_icd.json",
             "/share/vulkan/icd.d/MoltenVK_icd.json",
             "/opt/molten-vk/share/vulkan/icd.d/MoltenVK_icd.json",
         ])
     }
 
-    static var isMoltenVKInstalled: Bool { moltenVKICD != nil }
+    /// Path to libMoltenVK.dylib if installed.
+    static var moltenVKDylib: String? {
+        firstExisting(["/lib/libMoltenVK.dylib", "/opt/molten-vk/lib/libMoltenVK.dylib"])
+    }
+
+    static var isMoltenVKInstalled: Bool { moltenVKICD != nil || moltenVKDylib != nil }
 
     static var isGPTKInstalled: Bool { GraphicsBackend.isD3DMetalAvailable }
 

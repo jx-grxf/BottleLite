@@ -14,6 +14,7 @@ final class BottleStore: ObservableObject {
     @Published var wineInstallState: WineInstallState = .idle
     @Published private(set) var isInstallingWinetricks = false
     @Published private(set) var isInstallingGamingRuntime = false
+    @Published private(set) var isInstallingGPTK = false
     @Published var lastMessage = "Drop a Windows app (.exe) or installer (.msi) to begin."
     @Published var presentedLog: PresentedLog?
     @Published var installedPrograms: PresentedInstalledPrograms?
@@ -704,6 +705,24 @@ final class BottleStore: ObservableObject {
             lastMessage = "Finish the Terminal installer, then set a bottle's Graphics to DXVK."
         } catch {
             lastMessage = "Gaming runtime install failed: \(error.localizedDescription)"
+        }
+    }
+
+    var isGPTKInstalled: Bool { GraphicsBackend.isD3DMetalAvailable }
+
+    /// Installs Apple's Game Porting Toolkit (D3DMetal / DirectX 12) in Terminal.
+    func installGamePortingToolkit() async {
+        guard !isInstallingGPTK else { return }
+
+        isInstallingGPTK = true
+        lastMessage = "Opening Game Porting Toolkit installer in Terminal…"
+        defer { isInstallingGPTK = false }
+
+        do {
+            try await HomebrewGPTKInstaller().openInstaller()
+            lastMessage = "Finish the Terminal installer, then choose D3DMetal."
+        } catch {
+            lastMessage = "Game Porting Toolkit install failed: \(error.localizedDescription)"
         }
     }
 

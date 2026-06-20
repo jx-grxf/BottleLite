@@ -61,6 +61,26 @@ struct HomebrewGamingRuntimeInstaller: GamingRuntimeInstalling {
     }
 }
 
+protocol GamePortingToolkitInstalling: Sendable {
+    func openInstaller() async throws
+}
+
+/// Installs Apple's Game Porting Toolkit (D3DMetal, DirectX 12 → Metal) via
+/// Homebrew. Heavy and may need Rosetta + an Apple download; best-effort.
+struct HomebrewGPTKInstaller: GamePortingToolkitInstalling {
+    func openInstaller() async throws {
+        try await HomebrewInstall.openInTerminal(
+            title: "BottleLite — Game Porting Toolkit",
+            note: "Installs Apple's D3DMetal (DirectX 12 → Metal). This is a large download.",
+            brewCommands: [
+                "tap apple/apple https://github.com/apple/homebrew-apple",
+                "install apple/apple/game-porting-toolkit",
+            ],
+            doneNote: "Game Porting Toolkit installed. Reopen BottleLite and choose D3DMetal."
+        )
+    }
+}
+
 /// Shared helper that runs a `brew` command in a Terminal window so the user can
 /// answer Homebrew's interactive prompts (EULAs, sudo password).
 private enum HomebrewInstall {
@@ -68,6 +88,16 @@ private enum HomebrewInstall {
         title: String,
         note: String,
         brewCommand: String,
+        doneNote: String
+    ) async throws {
+        try await openInTerminal(
+            title: title, note: note, brewCommands: [brewCommand], doneNote: doneNote)
+    }
+
+    static func openInTerminal(
+        title: String,
+        note: String,
+        brewCommands: [String],
         doneNote: String
     ) async throws {
         try await Task.detached(priority: .userInitiated) {
@@ -83,6 +113,11 @@ private enum HomebrewInstall {
             let scriptURL = FileManager.default.temporaryDirectory
                 .appending(path: "BottleLite-Installer-\(UUID().uuidString).command")
 
+            let commands =
+                brewCommands
+                .map { "\(shellEscaped(brewPath)) \($0)" }
+                .joined(separator: " && \\\n")
+
             let script = """
                 #!/bin/zsh
                 clear
@@ -90,13 +125,13 @@ private enum HomebrewInstall {
                 echo "Type y if Homebrew asks to proceed."
                 echo "\(note)"
                 echo
-                \(shellEscaped(brewPath)) \(brewCommand)
-                status=$?
+                \(commands)
+                rc=$?
                 echo
-                if [ "$status" -eq 0 ]; then
+                if [ "$rc" -eq 0 ]; then
                   echo "\(doneNote)"
                 else
-                  echo "Install failed with exit code $status."
+                  echo "Install failed with exit code $rc."
                 fi
                 echo
                 read -n 1 -s -r -p "Press any key to close this window..."
