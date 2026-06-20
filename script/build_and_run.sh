@@ -109,6 +109,33 @@ cat >"$INFO_PLIST" <<PLIST
   <string>$ICON_NAME</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
+  <key>CFBundleDocumentTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleTypeName</key>
+      <string>Windows Executable</string>
+      <key>CFBundleTypeRole</key>
+      <string>Viewer</string>
+      <key>LSHandlerRank</key>
+      <string>Alternate</string>
+      <key>LSItemContentTypes</key>
+      <array>
+        <string>com.microsoft.windows-executable</string>
+      </array>
+    </dict>
+    <dict>
+      <key>CFBundleTypeName</key>
+      <string>Windows Installer Package</string>
+      <key>CFBundleTypeRole</key>
+      <string>Viewer</string>
+      <key>LSHandlerRank</key>
+      <string>Alternate</string>
+      <key>LSItemContentTypes</key>
+      <array>
+        <string>com.microsoft.windows-installer-package</string>
+      </array>
+    </dict>
+  </array>
   <key>LSApplicationCategoryType</key>
   <string>public.app-category.utilities</string>
   <key>LSMinimumSystemVersion</key>
@@ -129,6 +156,47 @@ cat >"$INFO_PLIST" <<PLIST
   <true/>
   <key>SUScheduledCheckInterval</key>
   <integer>3600</integer>
+  <key>UTImportedTypeDeclarations</key>
+  <array>
+    <dict>
+      <key>UTTypeIdentifier</key>
+      <string>com.microsoft.windows-executable</string>
+      <key>UTTypeDescription</key>
+      <string>Windows Executable</string>
+      <key>UTTypeConformsTo</key>
+      <array>
+        <string>public.executable</string>
+      </array>
+      <key>UTTypeTagSpecification</key>
+      <dict>
+        <key>public.filename-extension</key>
+        <array>
+          <string>exe</string>
+        </array>
+        <key>public.mime-type</key>
+        <string>application/vnd.microsoft.portable-executable</string>
+      </dict>
+    </dict>
+    <dict>
+      <key>UTTypeIdentifier</key>
+      <string>com.microsoft.windows-installer-package</string>
+      <key>UTTypeDescription</key>
+      <string>Windows Installer Package</string>
+      <key>UTTypeConformsTo</key>
+      <array>
+        <string>public.data</string>
+      </array>
+      <key>UTTypeTagSpecification</key>
+      <dict>
+        <key>public.filename-extension</key>
+        <array>
+          <string>msi</string>
+        </array>
+        <key>public.mime-type</key>
+        <string>application/x-msi</string>
+      </dict>
+    </dict>
+  </array>
 </dict>
 </plist>
 PLIST
