@@ -74,8 +74,13 @@ private struct UpdateCommands: Commands {
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    weak var store: BottleStore?
+    weak var store: BottleStore? {
+        didSet {
+            openPendingWindowsFiles()
+        }
+    }
     let updates = UpdateService()
+    private var pendingWindowsFileURLs: [URL] = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
@@ -92,5 +97,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         store?.terminateAllPrograms()
         return .terminateNow
+    }
+
+    func application(_ application: NSApplication, open urls: [URL]) {
+        queueWindowsFiles(urls)
+    }
+
+    func application(_ sender: NSApplication, openFiles filenames: [String]) {
+        queueWindowsFiles(filenames.map { URL(filePath: $0) })
+        sender.reply(toOpenOrPrint: .success)
+    }
+
+    private func queueWindowsFiles(_ urls: [URL]) {
+        let supported = urls.filter { $0.windowsFileKind != nil }
+        guard !supported.isEmpty else { return }
+
+        pendingWindowsFileURLs.append(contentsOf: supported)
+        NSApp.activate(ignoringOtherApps: true)
+        openPendingWindowsFiles()
+    }
+
+    private func openPendingWindowsFiles() {
+        guard let store, !pendingWindowsFileURLs.isEmpty else { return }
+
+        let urls = pendingWindowsFileURLs
+        pendingWindowsFileURLs.removeAll()
+        for url in urls {
+            store.openWindowsFile(at: url)
+        }
     }
 }

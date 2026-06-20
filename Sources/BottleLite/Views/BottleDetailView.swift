@@ -44,7 +44,7 @@ struct BottleDetailView: View {
         }
         .fileImporter(
             isPresented: $store.isInstallerImporterPresented,
-            allowedContentTypes: [.exeFile],
+            allowedContentTypes: UTType.importableWindowsFileTypes,
             allowsMultipleSelection: false
         ) { result in
             guard

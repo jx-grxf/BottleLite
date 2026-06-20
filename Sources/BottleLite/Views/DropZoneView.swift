@@ -12,9 +12,9 @@ struct DropZoneView: View {
                 .symbolRenderingMode(.hierarchical)
 
             VStack(spacing: 3) {
-                Text("Drop a Windows executable")
+                Text("Drop a Windows app or installer")
                     .font(.title3.weight(.semibold))
-                Text("BottleLite validates the file and keeps it isolated in the selected bottle.")
+                Text("BottleLite imports .exe files and runs .msi installers in the selected bottle.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
@@ -22,7 +22,7 @@ struct DropZoneView: View {
             Button {
                 store.isImporterPresented = true
             } label: {
-                Label("Choose EXE", systemImage: "plus")
+                Label("Choose File", systemImage: "plus")
             }
             .buttonStyle(.borderedProminent)
         }
@@ -51,7 +51,7 @@ struct DropZoneView: View {
                 }
 
                 Task { @MainActor in
-                    store.importExecutable(at: url)
+                    store.openWindowsFile(at: url)
                 }
             }
 
