@@ -118,7 +118,9 @@ jobs:
   build-release:
     name: Build and publish release
     needs: preflight
-    runs-on: macos-15
+    # Build against the macOS 26 SDK so the shipped app adopts the Liquid Glass
+    # appearance on Tahoe. Deployment target stays macOS 14 (see Package.swift).
+    runs-on: macos-26
     timeout-minutes: 45
     environment: release
     permissions:
