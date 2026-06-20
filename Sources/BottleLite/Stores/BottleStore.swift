@@ -338,6 +338,32 @@ final class BottleStore: ObservableObject {
         lastMessage = "Copied \(program.name) path."
     }
 
+    /// Creates a native macOS `.app` launcher for a program (with its real
+    /// Windows icon) on the Desktop or in ~/Applications/BottleLite, then reveals
+    /// it. Replaces the unusable `.desktop`/`.lnk` files Wine would otherwise drop.
+    func createLauncher(
+        for program: WindowsProgram,
+        in bottle: Bottle,
+        destination: ShortcutDestination
+    ) {
+        withWinePath(action: "create a launcher") { winePath in
+            let appURL = try ShortcutBuilder.createLauncher(
+                for: program, in: bottle, winePath: winePath, destination: destination)
+            NSWorkspace.shared.activateFileViewerSelecting([appURL])
+            lastMessage = "Created a launcher for \(program.name) in \(destination.directoryName)."
+        }
+    }
+
+    /// Removes the Linux-style `.desktop` launchers Wine created for BottleLite
+    /// bottles from the Desktop (moved to Trash, only ones we caused).
+    func cleanDesktopClutter() {
+        let removed = ShortcutBuilder.cleanWineDesktopClutter()
+        lastMessage =
+            removed == 0
+            ? "No leftover Wine shortcuts on the Desktop."
+            : "Moved \(removed) leftover Wine shortcut\(removed == 1 ? "" : "s") to the Trash."
+    }
+
     /// The log file capturing a program's most recent run, if one exists.
     func existingLogURL(for program: WindowsProgram, in bottle: Bottle) -> URL? {
         guard let url = try? BottleStorage.logURL(for: program, in: bottle, create: false),

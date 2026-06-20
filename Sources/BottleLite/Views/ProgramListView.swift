@@ -91,7 +91,7 @@ private struct ProgramRowView: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            statusIcon
+            ProgramIconView(program: program)
 
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
@@ -147,14 +147,6 @@ private struct ProgramRowView: View {
         .contextMenu { contextMenuItems }
     }
 
-    private var statusIcon: some View {
-        Image(
-            systemName: program.validation == .valid ? "checkmark.seal.fill" : "exclamationmark.triangle.fill"
-        )
-        .foregroundStyle(program.validation == .valid ? .green : .orange)
-        .font(.title3)
-    }
-
     private var runButton: some View {
         Button {
             if isRunning {
@@ -202,6 +194,11 @@ private struct ProgramRowView: View {
                 store.copyPath(program)
             } label: {
                 Label("Copy Path", systemImage: "doc.on.doc")
+            }
+
+            if let bottle {
+                Divider()
+                launcherMenu(for: bottle)
             }
 
             Divider()
@@ -266,6 +263,11 @@ private struct ProgramRowView: View {
             Label("Copy Path", systemImage: "doc.on.doc")
         }
 
+        if let bottle {
+            Divider()
+            launcherMenu(for: bottle)
+        }
+
         Divider()
 
         Button(role: .destructive) {
@@ -275,6 +277,84 @@ private struct ProgramRowView: View {
         } label: {
             Label("Remove", systemImage: "trash")
         }
+    }
+
+    /// Submenu that creates a native .app launcher (with the real Windows icon)
+    /// on the Desktop or in ~/Applications/BottleLite.
+    @ViewBuilder
+    private func launcherMenu(for bottle: Bottle) -> some View {
+        Menu {
+            Button {
+                store.createLauncher(for: program, in: bottle, destination: .applications)
+            } label: {
+                Label("Add to Applications", systemImage: "square.grid.2x2")
+            }
+            Button {
+                store.createLauncher(for: program, in: bottle, destination: .desktop)
+            } label: {
+                Label("Add to Desktop", systemImage: "menubar.dock.rectangle")
+            }
+        } label: {
+            Label("Create Launcher", systemImage: "app.badge")
+        }
+    }
+}
+
+/// Shows a Windows program's real embedded icon. The icon is parsed off the main
+/// thread (only `Data` crosses actor boundaries, so it stays Sendable-clean) and
+/// cached by path. Falls back to the system's generic executable icon.
+private struct ProgramIconView: View {
+    let program: WindowsProgram
+    @State private var image: NSImage?
+
+    var body: some View {
+        Group {
+            if let image {
+                Image(nsImage: image)
+                    .resizable()
+                    .interpolation(.high)
+                    .aspectRatio(contentMode: .fit)
+            } else {
+                Image(systemName: "app.dashed")
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(width: 32, height: 32)
+        .task(id: program.path) { await load() }
+    }
+
+    private func load() async {
+        if let cached = ProgramIconCache.images[program.path] {
+            image = cached
+            return
+        }
+        let resolved: NSImage
+        if let ico = await ProgramIconLoader.icoData(forPath: program.path),
+            let parsed = NSImage(data: ico)
+        {
+            resolved = parsed
+        } else {
+            resolved = NSWorkspace.shared.icon(forFile: program.path)
+        }
+        ProgramIconCache.images[program.path] = resolved
+        image = resolved
+    }
+}
+
+@MainActor
+private enum ProgramIconCache {
+    static var images: [String: NSImage] = [:]
+}
+
+private enum ProgramIconLoader {
+    /// Reads and parses the embedded icon off the main thread, returning `.ico`
+    /// bytes (`Data` is Sendable, so nothing non-Sendable crosses domains).
+    static func icoData(forPath path: String) async -> Data? {
+        await Task.detached(priority: .utility) {
+            guard let data = try? Data(contentsOf: URL(filePath: path)) else { return nil }
+            return ExecutableIconExtractor.icoData(fromPEBytes: [UInt8](data))
+        }.value
     }
 }
 

@@ -193,6 +193,9 @@ struct BottleTooling: BottleToolRunning {
         var environment = ProcessInfo.processInfo.environment
         environment["WINEPREFIX"] = prefixURL.path
         environment["WINEDEBUG"] = "-all"
+        // Keep installers/winecfg from littering the Desktop with .desktop/.lnk
+        // launchers; BottleLite generates native .app launchers instead.
+        environment["WINEDLLOVERRIDES"] = "winemenubuilder.exe=d"
         let wineBin = URL(filePath: winePath).deletingLastPathComponent().path
         if let existingPath = environment["PATH"], !existingPath.isEmpty {
             environment["PATH"] = "\(wineBin):\(existingPath)"

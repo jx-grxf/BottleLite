@@ -115,6 +115,12 @@ private struct BottleActionsMenu: View {
             } label: {
                 Label("Reveal C: Drive", systemImage: "externaldrive")
             }
+
+            Button {
+                store.cleanDesktopClutter()
+            } label: {
+                Label("Clean Up Desktop Shortcuts", systemImage: "wand.and.rays.inverse")
+            }
         } label: {
             Label("Bottle Actions", systemImage: "slider.horizontal.3")
         }
