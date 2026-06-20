@@ -63,6 +63,11 @@ struct BottleDetailView: View {
         .sheet(item: $store.editingProgram) { editor in
             ProgramSettingsView(editor: editor, store: store)
         }
+        .sheet(isPresented: $store.isBottleSettingsPresented) {
+            if let bottle = store.selectedBottle {
+                BottleSettingsView(store: store, bottle: bottle)
+            }
+        }
     }
 }
 
@@ -72,13 +77,6 @@ private struct BottleActionsMenu: View {
 
     var body: some View {
         Menu {
-            Toggle(isOn: gameModeBinding) {
-                Label("Game Mode", systemImage: "gamecontroller")
-            }
-            .help("Extra performance: msync/esync, high priority, no idle sleep, Metal FPS overlay")
-
-            Divider()
-
             Button {
                 store.isInstallerImporterPresented = true
             } label: {
@@ -91,75 +89,18 @@ private struct BottleActionsMenu: View {
                 Label("Add Installed Program…", systemImage: "plus.app")
             }
 
-            Button {
-                store.openConfiguration(for: bottle)
-            } label: {
-                Label("Wine Configuration", systemImage: "gearshape")
-            }
-
-            Button {
-                store.initializePrefix(for: bottle)
-            } label: {
-                Label("Prepare Bottle", systemImage: "wand.and.stars")
-            }
-            .disabled(store.isBusy(bottle))
-
-            Divider()
-
-            dependenciesMenu
-
             Divider()
 
             Button {
-                store.revealDriveC(for: bottle)
+                store.isBottleSettingsPresented = true
             } label: {
-                Label("Reveal C: Drive", systemImage: "externaldrive")
-            }
-
-            Button {
-                store.cleanDesktopClutter()
-            } label: {
-                Label("Clean Up Desktop Shortcuts", systemImage: "wand.and.rays.inverse")
+                Label("Bottle Settings…", systemImage: "slider.horizontal.3")
             }
         } label: {
             Label("Bottle Actions", systemImage: "slider.horizontal.3")
         }
         .menuIndicator(.visible)
-        .help("Configure and manage this bottle")
-    }
-
-    private var gameModeBinding: Binding<Bool> {
-        Binding(
-            get: { store.isGameMode(bottle) },
-            set: { store.setGameMode($0, for: bottle) }
-        )
-    }
-
-    @ViewBuilder
-    private var dependenciesMenu: some View {
-        if store.winetricksAvailable {
-            Menu {
-                ForEach(WinetricksVerb.common) { verb in
-                    Button(verb.title) {
-                        store.installDependency(verb, in: bottle)
-                    }
-                }
-            } label: {
-                Label("Fix Missing Components", systemImage: "shippingbox.and.arrow.backward")
-            }
-            .help("Add Windows components (fonts, runtimes, DirectX) to this bottle via winetricks")
-        } else {
-            Button {
-                Task { await store.installWinetricks() }
-            } label: {
-                Label("Install winetricks…", systemImage: "arrow.down.circle")
-            }
-            .help(
-                "winetricks installs common Windows components (fonts, Visual C++, .NET, DirectX) "
-                    + "into a bottle. BottleLite will install it via Homebrew in Terminal."
-            )
-            .disabled(store.isInstallingWinetricks)
-        }
+        .help("Run installers, add installed apps, or open this bottle's settings")
     }
 }
 
