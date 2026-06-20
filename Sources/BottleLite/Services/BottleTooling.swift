@@ -5,13 +5,25 @@ struct WinetricksVerb: Identifiable, Hashable {
     var id: String { verb }
     let verb: String
     let title: String
+    /// Plain-language note on what this component fixes, shown in the UI.
+    let detail: String
 
     static let common: [WinetricksVerb] = [
-        WinetricksVerb(verb: "corefonts", title: "Core Microsoft Fonts"),
-        WinetricksVerb(verb: "vcrun2022", title: "Visual C++ 2015–2022 Runtime"),
-        WinetricksVerb(verb: "dotnet48", title: ".NET Framework 4.8"),
-        WinetricksVerb(verb: "dxvk", title: "DXVK (Direct3D → Vulkan)"),
-        WinetricksVerb(verb: "d3dx9", title: "DirectX 9 Runtime"),
+        WinetricksVerb(
+            verb: "corefonts", title: "Core Microsoft Fonts",
+            detail: "Fixes missing or boxed-out text in many apps."),
+        WinetricksVerb(
+            verb: "vcrun2022", title: "Visual C++ 2015–2022 Runtime",
+            detail: "Needed by most modern games and apps to start."),
+        WinetricksVerb(
+            verb: "dotnet48", title: ".NET Framework 4.8",
+            detail: "Required by apps built on Microsoft .NET."),
+        WinetricksVerb(
+            verb: "dxvk", title: "DXVK (Direct3D → Vulkan)",
+            detail: "Better graphics performance for DirectX 9–11 games."),
+        WinetricksVerb(
+            verb: "d3dx9", title: "DirectX 9 Runtime",
+            detail: "Helps older DirectX 9 games launch."),
     ]
 }
 
