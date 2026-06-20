@@ -141,18 +141,25 @@ private struct BottleActionsMenu: View {
             } label: {
                 Label("Install Dependency", systemImage: "shippingbox.and.arrow.backward")
             }
+            .help("Add Windows components (fonts, runtimes, DirectX) to this bottle via winetricks")
         } else {
             Button {
-                store.lastMessage = "Install winetricks first: brew install winetricks"
+                Task { await store.installWinetricks() }
             } label: {
-                Label("Install Dependency (needs winetricks)", systemImage: "shippingbox.and.arrow.backward")
+                Label("Install winetricks…", systemImage: "arrow.down.circle")
             }
+            .help(
+                "winetricks installs common Windows components (fonts, Visual C++, .NET, DirectX) "
+                    + "into a bottle. BottleLite will install it via Homebrew in Terminal."
+            )
+            .disabled(store.isInstallingWinetricks)
         }
     }
 }
 
 private struct HeaderView: View {
     @ObservedObject var store: BottleStore
+    @State private var showingHelp = false
 
     var body: some View {
         HStack(spacing: 14) {
@@ -177,6 +184,17 @@ private struct HeaderView: View {
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
                 .disabled(store.wineInstallState == .installing)
+            }
+
+            Button {
+                showingHelp.toggle()
+            } label: {
+                Image(systemName: "questionmark.circle")
+            }
+            .buttonStyle(.borderless)
+            .help("What is BottleLite and how do these actions work?")
+            .popover(isPresented: $showingHelp, arrowEdge: .bottom) {
+                HelpPopoverView()
             }
 
             Spacer()
@@ -220,5 +238,55 @@ private struct HeaderView: View {
 
     private var buttonIcon: String {
         store.wineInstallState == .waitingForTerminal ? "checkmark.circle" : "terminal"
+    }
+}
+
+/// Plain-language explainer shown from the header's "?" button so the core
+/// concepts (bottles, running apps, installers, dependencies) are discoverable.
+private struct HelpPopoverView: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("How BottleLite works")
+                .font(.headline)
+
+            helpRow(
+                "shippingbox",
+                "Bottles",
+                "Each bottle is an isolated Windows environment (a Wine prefix). Apps in one bottle can't see another's files."
+            )
+            helpRow(
+                "play.fill",
+                "Run",
+                "Launches a Windows .exe inside the selected bottle using Wine.")
+            helpRow(
+                "arrow.down.app",
+                "Run Installer",
+                "Runs a Windows setup (.exe/.msi) so it installs into the bottle's C: drive. Afterwards use “Add Installed Program”."
+            )
+            helpRow(
+                "shippingbox.and.arrow.backward",
+                "Dependencies (winetricks)",
+                "winetricks adds Windows components some apps need — fonts, Visual C++, .NET, DirectX. Install winetricks once, then pick a component."
+            )
+            helpRow(
+                "gamecontroller",
+                "Game Mode",
+                "Extra performance for games: msync/esync, high priority, keeps the Mac awake, and a Metal FPS overlay."
+            )
+        }
+        .padding(16)
+        .frame(width: 360, alignment: .leading)
+    }
+
+    private func helpRow(_ symbol: String, _ title: String, _ detail: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: symbol)
+                .foregroundStyle(.secondary)
+                .frame(width: 18)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title).font(.callout.weight(.semibold))
+                Text(detail).font(.caption).foregroundStyle(.secondary)
+            }
+        }
     }
 }

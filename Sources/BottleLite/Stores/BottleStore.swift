@@ -11,7 +11,8 @@ final class BottleStore: ObservableObject {
     @Published var isInstallerImporterPresented = false
     @Published var isWineInstallPromptPresented = false
     @Published var wineInstallState: WineInstallState = .idle
-    @Published var lastMessage = "Drop an .exe to begin."
+    @Published private(set) var isInstallingWinetricks = false
+    @Published var lastMessage = "Drop a Windows app (.exe) or installer (.msi) to begin."
     @Published var presentedLog: PresentedLog?
     @Published var installedPrograms: PresentedInstalledPrograms?
     @Published var editingProgram: PresentedProgramEditor?
@@ -21,6 +22,7 @@ final class BottleStore: ObservableObject {
     private let runtimeProbe: WineRuntimeProbing
     private let programRunner: ProgramRunning
     private let wineInstaller: WineInstalling
+    private let winetricksInstaller: WinetricksInstalling
     private let repository: BottleStoring
     private let tooling: BottleToolRunning
     private var isLoaded = false
@@ -32,12 +34,14 @@ final class BottleStore: ObservableObject {
         runtimeProbe: WineRuntimeProbing = WineRuntimeProbe(),
         programRunner: ProgramRunning = WineProgramRunner(),
         wineInstaller: WineInstalling = HomebrewWineInstaller(),
+        winetricksInstaller: WinetricksInstalling = HomebrewWinetricksInstaller(),
         repository: BottleStoring = BottleRepository(),
         tooling: BottleToolRunning = BottleTooling()
     ) {
         self.runtimeProbe = runtimeProbe
         self.programRunner = programRunner
         self.wineInstaller = wineInstaller
+        self.winetricksInstaller = winetricksInstaller
         self.repository = repository
         self.tooling = tooling
 
@@ -478,6 +482,23 @@ final class BottleStore: ObservableObject {
 
     func promptWineInstall() {
         isWineInstallPromptPresented = true
+    }
+
+    /// Opens a Terminal that installs winetricks via Homebrew, then re-checks
+    /// availability so the dependency menu unlocks once it lands.
+    func installWinetricks() async {
+        guard !isInstallingWinetricks, !winetricksAvailable else { return }
+
+        isInstallingWinetricks = true
+        lastMessage = "Opening winetricks installer in Terminal..."
+        defer { isInstallingWinetricks = false }
+
+        do {
+            try await winetricksInstaller.openInstaller()
+            lastMessage = "Finish the Terminal installer, then reopen the dependency menu."
+        } catch {
+            lastMessage = "winetricks install failed: \(error.localizedDescription)"
+        }
     }
 
     func installWine() async {
