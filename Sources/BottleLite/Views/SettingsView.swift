@@ -4,6 +4,7 @@ import SwiftUI
 struct SettingsView: View {
     @ObservedObject var store: BottleStore
     @ObservedObject var updates: UpdateService
+    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
 
     var body: some View {
         Form {
@@ -76,6 +77,12 @@ struct SettingsView: View {
                     Button("Copy") {
                         store.copyDiagnosticReport(for: store.selectedBottle, program: nil)
                     }
+                }
+            }
+
+            Section("Help") {
+                Button("Show Welcome Screen Again") {
+                    hasCompletedOnboarding = false
                 }
             }
 
