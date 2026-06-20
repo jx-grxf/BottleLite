@@ -13,6 +13,7 @@ final class BottleStore: ObservableObject {
     @Published var isWineInstallPromptPresented = false
     @Published var wineInstallState: WineInstallState = .idle
     @Published private(set) var isInstallingWinetricks = false
+    @Published private(set) var isInstallingGamingRuntime = false
     @Published var lastMessage = "Drop a Windows app (.exe) or installer (.msi) to begin."
     @Published var presentedLog: PresentedLog?
     @Published var installedPrograms: PresentedInstalledPrograms?
@@ -26,6 +27,7 @@ final class BottleStore: ObservableObject {
     private let programRunner: ProgramRunning
     private let wineInstaller: WineInstalling
     private let winetricksInstaller: WinetricksInstalling
+    private let gamingRuntimeInstaller: GamingRuntimeInstalling
     private let repository: BottleStoring
     private let tooling: BottleToolRunning
     private var isLoaded = false
@@ -41,6 +43,7 @@ final class BottleStore: ObservableObject {
         programRunner: ProgramRunning = WineProgramRunner(),
         wineInstaller: WineInstalling = HomebrewWineInstaller(),
         winetricksInstaller: WinetricksInstalling = HomebrewWinetricksInstaller(),
+        gamingRuntimeInstaller: GamingRuntimeInstalling = HomebrewGamingRuntimeInstaller(),
         repository: BottleStoring = BottleRepository(),
         tooling: BottleToolRunning = BottleTooling()
     ) {
@@ -48,6 +51,7 @@ final class BottleStore: ObservableObject {
         self.programRunner = programRunner
         self.wineInstaller = wineInstaller
         self.winetricksInstaller = winetricksInstaller
+        self.gamingRuntimeInstaller = gamingRuntimeInstaller
         self.repository = repository
         self.tooling = tooling
 
@@ -681,6 +685,26 @@ final class BottleStore: ObservableObject {
 
     func promptWineInstall() {
         isWineInstallPromptPresented = true
+    }
+
+    /// Whether MoltenVK (the Vulkan→Metal layer DXVK needs) is installed.
+    var isGamingRuntimeInstalled: Bool { GamingRuntime.isMoltenVKInstalled }
+
+    /// Installs MoltenVK + the Vulkan loader via Homebrew in Terminal so DXVK can
+    /// actually run games.
+    func installGamingRuntime() async {
+        guard !isInstallingGamingRuntime else { return }
+
+        isInstallingGamingRuntime = true
+        lastMessage = "Opening gaming-runtime installer in Terminal…"
+        defer { isInstallingGamingRuntime = false }
+
+        do {
+            try await gamingRuntimeInstaller.openInstaller()
+            lastMessage = "Finish the Terminal installer, then set a bottle's Graphics to DXVK."
+        } catch {
+            lastMessage = "Gaming runtime install failed: \(error.localizedDescription)"
+        }
     }
 
     /// Opens a Terminal that installs winetricks via Homebrew, then re-checks

@@ -47,8 +47,26 @@ struct BottleSettingsView: View {
             if store.graphicsBackend(for: bottle) == .dxvk {
                 HStack(alignment: .firstTextBaseline) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("DXVK libraries")
-                        description("Required for the DXVK backend to actually run games.")
+                        Text("MoltenVK (system)")
+                        description("Vulkan → Metal. Needed once on your Mac for DXVK to work.")
+                    }
+                    Spacer()
+                    if store.isInstallingGamingRuntime {
+                        ProgressView().controlSize(.small)
+                    } else if store.isGamingRuntimeInstalled {
+                        Label("Installed", systemImage: "checkmark.circle.fill")
+                            .labelStyle(.titleAndIcon)
+                            .foregroundStyle(.green)
+                            .font(.caption.weight(.medium))
+                    } else {
+                        Button("Install") { Task { await store.installGamingRuntime() } }
+                    }
+                }
+
+                HStack(alignment: .firstTextBaseline) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("DXVK libraries (this bottle)")
+                        description("The DirectX→Vulkan DLLs, installed per bottle.")
                     }
                     Spacer()
                     if store.isInstallingDXVK(bottle) {

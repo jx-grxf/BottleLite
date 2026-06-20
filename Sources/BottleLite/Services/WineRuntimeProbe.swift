@@ -7,9 +7,17 @@ protocol WineRuntimeProbing {
 struct WineRuntimeProbe: WineRuntimeProbing {
     private let fileManager: FileManager
 
-    /// Candidate Wine binaries, most specific first. Modern Wine (10+) ships a
-    /// single `wine` binary, so `wine64` is only a fallback for older installs.
+    /// Candidate Wine binaries, most preferred first. Gaming-capable builds
+    /// (Apple's Game Porting Toolkit, Gcenx's CrossOver-based Wine) come before
+    /// plain Homebrew Wine so D3DMetal/DXVK have a runtime that supports them.
     static let candidatePaths = [
+        // Game Porting Toolkit (D3DMetal-capable)
+        "/opt/homebrew/opt/game-porting-toolkit/bin/wine64",
+        "/usr/local/opt/game-porting-toolkit/bin/wine64",
+        // Gcenx CrossOver-based Wine
+        "/Applications/Wine Crossover.app/Contents/Resources/wine/bin/wine64",
+        "/Applications/Wine Crossover.app/Contents/Resources/wine/bin/wine",
+        // Plain Homebrew / Wine Stable
         "/opt/homebrew/bin/wine",
         "/opt/homebrew/bin/wine64",
         "/usr/local/bin/wine",

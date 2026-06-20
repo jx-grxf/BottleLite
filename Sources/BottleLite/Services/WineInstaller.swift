@@ -44,6 +44,23 @@ struct HomebrewWinetricksInstaller: WinetricksInstalling, Sendable {
     }
 }
 
+protocol GamingRuntimeInstalling: Sendable {
+    func openInstaller() async throws
+}
+
+/// Installs MoltenVK (+ the Vulkan loader) so the DXVK backend can translate
+/// DirectX → Vulkan → Metal. Both are permissively licensed.
+struct HomebrewGamingRuntimeInstaller: GamingRuntimeInstalling {
+    func openInstaller() async throws {
+        try await HomebrewInstall.openInTerminal(
+            title: "BottleLite gaming runtime",
+            note: "Installs MoltenVK + the Vulkan loader so DXVK can run DirectX 9–11 games on Metal.",
+            brewCommand: "install molten-vk vulkan-loader",
+            doneNote: "Gaming runtime installed. Set a bottle's Graphics to DXVK and relaunch the game."
+        )
+    }
+}
+
 /// Shared helper that runs a `brew` command in a Terminal window so the user can
 /// answer Homebrew's interactive prompts (EULAs, sudo password).
 private enum HomebrewInstall {

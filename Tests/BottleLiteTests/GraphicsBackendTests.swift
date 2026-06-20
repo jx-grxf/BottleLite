@@ -28,6 +28,10 @@ struct GraphicsBackendTests {
         #expect(bottle.graphicsBackend == .wineD3D)
     }
 
+    @Test func builtInBackendNeedsNoGamingEnvironment() {
+        #expect(GamingRuntime.environment(for: .wineD3D).isEmpty)
+    }
+
     @Test func steamTemplateUsesGamingDefaults() {
         #expect(BottleType.steamGame.gameMode == true)
         #expect(BottleType.steamGame.graphicsBackend == .dxvk)

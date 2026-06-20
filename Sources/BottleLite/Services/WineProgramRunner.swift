@@ -206,6 +206,13 @@ struct WineProgramRunner: ProgramRunning {
                 environment[key] = value
             }
         }
+
+        // Point Wine at MoltenVK / GPTK so the selected graphics backend can
+        // actually use them (no-op for the built-in renderer).
+        for (key, value) in GamingRuntime.environment(for: graphicsBackend) {
+            environment[key] = value
+        }
+
         return environment
     }
 
