@@ -21,12 +21,18 @@ struct ContentView: View {
                 }
                 .help("Re-check which Wine runtime is installed")
 
-                Button {
-                    store.createBottle()
+                Menu {
+                    ForEach(BottleType.allCases) { type in
+                        Button {
+                            store.createBottle(type: type)
+                        } label: {
+                            Label(type.title, systemImage: type.systemImage)
+                        }
+                    }
                 } label: {
                     Label("New Bottle", systemImage: "plus")
                 }
-                .help("Create a new isolated Windows environment")
+                .help("Create a new bottle from a template")
 
                 Button {
                     store.isImporterPresented = true
