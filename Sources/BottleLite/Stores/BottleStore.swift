@@ -9,6 +9,7 @@ final class BottleStore: ObservableObject {
     @Published var runtimeStatus: RuntimeStatus = .unknown
     @Published var isImporterPresented = false
     @Published var isInstallerImporterPresented = false
+    @Published var isBottleSettingsPresented = false
     @Published var isWineInstallPromptPresented = false
     @Published var wineInstallState: WineInstallState = .idle
     @Published private(set) var isInstallingWinetricks = false
