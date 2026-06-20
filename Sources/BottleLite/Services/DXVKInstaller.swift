@@ -59,12 +59,18 @@ enum DXVKInstaller {
         try fileManager.moveItem(at: tempFile, to: archive)
         try extract(archive: archive, into: workDir, fileManager: fileManager)
 
-        guard let x64 = findDirectory(named: "x64", under: workDir, fileManager: fileManager) else {
+        // Different DXVK-macOS archives use either x64/x32 or
+        // x86_64-windows/i386-windows folder names.
+        guard
+            let x64 = findDirectory(
+                namedAnyOf: ["x64", "x86_64-windows"], under: workDir, fileManager: fileManager)
+        else {
             throw DXVKInstallError.extractionFailed
         }
         try copyDLLs(from: x64, to: system32, fileManager: fileManager)
 
-        if let x32 = findDirectory(named: "x32", under: workDir, fileManager: fileManager),
+        if let x32 = findDirectory(
+            namedAnyOf: ["x32", "i386-windows"], under: workDir, fileManager: fileManager),
             fileManager.fileExists(atPath: syswow64.path)
         {
             try copyDLLs(from: x32, to: syswow64, fileManager: fileManager)
@@ -86,7 +92,11 @@ enum DXVKInstaller {
         }
 
         let release = try JSONDecoder().decode(GitHubRelease.self, from: data)
-        guard let asset = release.assets.first(where: { $0.name.hasSuffix(".tar.gz") }) else {
+        let tarballs = release.assets.filter { $0.name.hasSuffix(".tar.gz") }
+        // Prefer the standard build (x64/x32 layout) over the "builtin" variant
+        // (x86_64-windows/i386-windows, meant for overwriting Wine's own DLLs).
+        guard let asset = tarballs.first(where: { !$0.name.contains("builtin") }) ?? tarballs.first
+        else {
             throw DXVKInstallError.noRelease
         }
         return asset.browserDownloadURL
@@ -107,13 +117,15 @@ enum DXVKInstaller {
         }
     }
 
-    private static func findDirectory(named name: String, under root: URL, fileManager: FileManager) -> URL? {
+    private static func findDirectory(
+        namedAnyOf names: [String], under root: URL, fileManager: FileManager
+    ) -> URL? {
         guard
             let enumerator = fileManager.enumerator(
                 at: root, includingPropertiesForKeys: [.isDirectoryKey])
         else { return nil }
         for case let url as URL in enumerator
-        where url.lastPathComponent == name
+        where names.contains(url.lastPathComponent)
             && (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true
         {
             return url
