@@ -25,8 +25,17 @@ protocol BottleToolRunning: Sendable {
     /// Initializes the prefix (`wineboot --init`) and waits for completion.
     func initializePrefix(bottle: Bottle, winePath: String) async throws
 
-    /// Runs an arbitrary installer/executable inside the bottle.
-    func runInstaller(at url: URL, bottle: Bottle, winePath: String) throws
+    /// Runs an arbitrary installer/executable inside the bottle. `onExit` fires
+    /// (off the main thread) with the process status when the installer quits, so
+    /// callers can auto-scan the prefix for what it installed. Returns the
+    /// launched process so the caller can keep it alive until it exits.
+    @discardableResult
+    func runInstaller(
+        at url: URL,
+        bottle: Bottle,
+        winePath: String,
+        onExit: @escaping @Sendable (Int32) -> Void
+    ) throws -> Process
 
     /// Launches a program inside Terminal.app so a console (CUI) tool's output
     /// is visible and interactive.
@@ -80,14 +89,24 @@ struct BottleTooling: BottleToolRunning {
         }.value
     }
 
-    func runInstaller(at url: URL, bottle: Bottle, winePath: String) throws {
+    @discardableResult
+    func runInstaller(
+        at url: URL,
+        bottle: Bottle,
+        winePath: String,
+        onExit: @escaping @Sendable (Int32) -> Void
+    ) throws -> Process {
         let prefixURL = try BottleStorage.prefixURL(for: bottle, using: fileManager)
         let process = Process()
         process.executableURL = URL(filePath: winePath)
         process.arguments = Self.installerArguments(for: url)
         process.currentDirectoryURL = url.deletingLastPathComponent()
         process.environment = environment(prefixURL: prefixURL, winePath: winePath)
+        process.terminationHandler = { finished in
+            onExit(finished.terminationStatus)
+        }
         try process.run()
+        return process
     }
 
     static func installerArguments(for url: URL) -> [String] {
