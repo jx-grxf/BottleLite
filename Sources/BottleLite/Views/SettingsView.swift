@@ -61,6 +61,24 @@ struct SettingsView: View {
                 }
             }
 
+            Section("Diagnostics") {
+                HStack(alignment: .firstTextBaseline) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Diagnostic Report")
+                        Text(
+                            "Copies your macOS, Mac, Wine and bottle details to the clipboard for GitHub issues."
+                        )
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer()
+                    Button("Copy") {
+                        store.copyDiagnosticReport(for: store.selectedBottle, program: nil)
+                    }
+                }
+            }
+
             Section("About") {
                 Link("BottleLite on GitHub", destination: BottleLiteApp.repositoryURL)
             }
