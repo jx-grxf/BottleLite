@@ -43,12 +43,36 @@ struct BottleSettingsView: View {
                 }
             }
             description(store.graphicsBackend(for: bottle).detail)
+
+            if store.graphicsBackend(for: bottle) == .dxvk {
+                HStack(alignment: .firstTextBaseline) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("DXVK libraries")
+                        description("Required for the DXVK backend to actually run games.")
+                    }
+                    Spacer()
+                    if store.isInstallingDXVK(bottle) {
+                        ProgressView().controlSize(.small)
+                    } else if store.isDXVKInstalled(for: bottle) {
+                        Label("Installed", systemImage: "checkmark.circle.fill")
+                            .labelStyle(.titleAndIcon)
+                            .foregroundStyle(.green)
+                            .font(.caption.weight(.medium))
+                    } else {
+                        Button("Install") { store.installDXVK(for: bottle) }
+                    }
+                }
+            }
+
+            if store.graphicsBackend(for: bottle) == .d3dMetal, !GraphicsBackend.isD3DMetalAvailable {
+                description(
+                    "⚠︎ Game Porting Toolkit not detected. D3DMetal needs a GPTK Wine build; "
+                        + "until then this falls back to the built-in renderer.")
+            }
         } header: {
             Text("Graphics")
         } footer: {
-            Text(
-                "Applies the next time you launch a program. Full speedups also need the backend's "
-                    + "libraries (the DXVK component below, or a Game Porting Toolkit Wine build).")
+            Text("Applies the next time you launch a program in this bottle.")
         }
     }
 

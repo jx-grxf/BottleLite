@@ -38,4 +38,16 @@ enum GraphicsBackend: String, Codable, CaseIterable, Identifiable, Sendable {
         case .dxvk, .d3dMetal: "dxgi,d3d9,d3d10core,d3d11=n,b"
         }
     }
+
+    /// Whether Apple's Game Porting Toolkit (D3DMetal) appears to be installed.
+    /// Best-effort: checks the libraries GPTK ships under common Homebrew prefixes.
+    static var isD3DMetalAvailable: Bool {
+        let candidates = [
+            "/opt/homebrew/lib/external/libd3dshared.dylib",
+            "/opt/homebrew/lib/libd3dshared.dylib",
+            "/usr/local/lib/external/libd3dshared.dylib",
+            "/usr/local/lib/libd3dshared.dylib",
+        ]
+        return candidates.contains { FileManager.default.fileExists(atPath: $0) }
+    }
 }

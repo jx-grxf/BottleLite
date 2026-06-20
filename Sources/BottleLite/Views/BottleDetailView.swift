@@ -68,6 +68,9 @@ struct BottleDetailView: View {
                 BottleSettingsView(store: store, bottle: bottle)
             }
         }
+        .sheet(item: $store.presentedFailure) { failure in
+            ProgramFailureView(store: store, failure: failure)
+        }
     }
 }
 

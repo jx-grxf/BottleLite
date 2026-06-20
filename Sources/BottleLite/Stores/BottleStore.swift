@@ -17,6 +17,8 @@ final class BottleStore: ObservableObject {
     @Published var presentedLog: PresentedLog?
     @Published var installedPrograms: PresentedInstalledPrograms?
     @Published var editingProgram: PresentedProgramEditor?
+    @Published var presentedFailure: PresentedProgramFailure?
+    @Published private(set) var dxvkInstalling: Set<Bottle.ID> = []
     @Published private(set) var busyBottles: Set<Bottle.ID> = []
     @Published private(set) var runningPrograms: [WindowsProgram.ID: ProgramLaunch] = [:]
 
@@ -108,6 +110,46 @@ final class BottleStore: ObservableObject {
 
     func graphicsBackend(for bottle: Bottle) -> GraphicsBackend {
         bottles.first { $0.id == bottle.id }?.graphicsBackend ?? .wineD3D
+    }
+
+    func isDXVKInstalled(for bottle: Bottle) -> Bool {
+        guard let prefixURL = try? BottleStorage.prefixURL(for: bottle, create: false) else {
+            return false
+        }
+        return DXVKInstaller.isInstalled(inPrefix: prefixURL)
+    }
+
+    func isInstallingDXVK(_ bottle: Bottle) -> Bool {
+        dxvkInstalling.contains(bottle.id)
+    }
+
+    /// Downloads the macOS DXVK build and installs its DLLs into the bottle so
+    /// the DXVK backend has libraries to use.
+    func installDXVK(for bottle: Bottle) {
+        guard !dxvkInstalling.contains(bottle.id) else { return }
+        guard
+            let prefixURL = try? BottleStorage.prefixURL(for: bottle, create: false),
+            FileManager.default.fileExists(atPath: prefixURL.appending(path: "drive_c").path)
+        else {
+            lastMessage = "Prepare \(bottle.name) first (run an app or Prepare Bottle), then install DXVK."
+            return
+        }
+
+        let bottleID = bottle.id
+        dxvkInstalling.insert(bottleID)
+        lastMessage = "Downloading DXVK for \(bottle.name)…"
+        Task {
+            defer { dxvkInstalling.remove(bottleID) }
+            do {
+                try await DXVKInstaller.install(intoPrefix: prefixURL)
+                if let index = bottles.firstIndex(where: { $0.id == bottleID }) {
+                    bottles[index].graphicsBackend = .dxvk
+                }
+                lastMessage = "DXVK installed into \(bottle.name). Relaunch the app to use it."
+            } catch {
+                lastMessage = "Could not install DXVK: \(error.localizedDescription)"
+            }
+        }
     }
 
     /// winetricks verbs already installed in a bottle's prefix (from its
@@ -234,6 +276,13 @@ final class BottleStore: ObservableObject {
                     self?.runningPrograms.removeValue(forKey: program.id)
                     self?.updatePowerAssertion()
                     self?.lastMessage = termination.message(for: program.name)
+                    if termination.status != 0 {
+                        self?.presentedFailure = PresentedProgramFailure(
+                            bottleID: bottle.id,
+                            programID: program.id,
+                            programName: program.name,
+                            exitCode: termination.status)
+                    }
                 }
             }
 
@@ -760,6 +809,15 @@ struct PresentedInstalledPrograms: Identifiable, Equatable {
     let bottleID: Bottle.ID
     let bottleName: String
     let candidates: [FoundExecutable]
+}
+
+/// Backs the "a program exited with an error" helper sheet.
+struct PresentedProgramFailure: Identifiable, Equatable {
+    let id = UUID()
+    let bottleID: Bottle.ID
+    let programID: WindowsProgram.ID
+    let programName: String
+    let exitCode: Int32
 }
 
 /// Backs the program settings sheet (rename + launch arguments).
