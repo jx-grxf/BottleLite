@@ -87,6 +87,35 @@ final class BottleStore: ObservableObject {
         lastMessage = "Created \(uniqueName)."
     }
 
+    /// Creates a bottle from a template, pre-applying sensible Game Mode and
+    /// graphics-backend defaults for that kind of app.
+    func createBottle(type: BottleType) {
+        let uniqueName = nextAvailableName(base: type.defaultName)
+        let bottle = Bottle(
+            name: uniqueName, gameMode: type.gameMode, graphicsBackend: type.graphicsBackend)
+        bottles.insert(bottle, at: 0)
+        selection = bottle.id
+        lastMessage = "Created \(uniqueName) (\(type.title))."
+    }
+
+    /// Sets the graphics backend for a bottle and persists it.
+    func setGraphicsBackend(_ backend: GraphicsBackend, for bottle: Bottle) {
+        guard let index = bottles.firstIndex(where: { $0.id == bottle.id }) else { return }
+        guard bottles[index].graphicsBackend != backend else { return }
+        bottles[index].graphicsBackend = backend
+        lastMessage = "Graphics set to \(backend.title) for \(bottles[index].name). Restart the app to apply."
+    }
+
+    func graphicsBackend(for bottle: Bottle) -> GraphicsBackend {
+        bottles.first { $0.id == bottle.id }?.graphicsBackend ?? .wineD3D
+    }
+
+    /// winetricks verbs already installed in a bottle's prefix (from its
+    /// `winetricks.log`), so the UI can show what's installed.
+    func installedComponents(for bottle: Bottle) -> Set<String> {
+        tooling.installedVerbs(bottle: bottle)
+    }
+
     func renameBottle(_ bottle: Bottle, to newName: String) {
         let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty,

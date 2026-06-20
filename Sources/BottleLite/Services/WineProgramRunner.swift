@@ -81,7 +81,9 @@ struct WineProgramRunner: ProgramRunning {
         process.executableURL = URL(filePath: winePath)
         process.arguments = [program.path] + Self.parseArguments(program.arguments)
         process.currentDirectoryURL = Self.workingDirectory(for: executableURL)
-        process.environment = launchEnvironment(prefixURL: prefixURL, winePath: winePath, gameMode: gameMode)
+        process.environment = launchEnvironment(
+            prefixURL: prefixURL, winePath: winePath, gameMode: gameMode,
+            graphicsBackend: bottle.graphicsBackend)
         if gameMode {
             // Ask the scheduler for responsive, non-throttled CPU time.
             process.qualityOfService = .userInitiated
@@ -170,13 +172,26 @@ struct WineProgramRunner: ProgramRunning {
         return handle
     }
 
-    private func launchEnvironment(prefixURL: URL, winePath: String, gameMode: Bool) -> [String: String] {
+    /// Combined `WINEDLLOVERRIDES`: always disable winemenubuilder, plus the
+    /// translation layer's overrides when a non-default backend is selected.
+    static func dllOverrides(for backend: GraphicsBackend) -> String {
+        var parts = ["winemenubuilder.exe=d"]
+        if let overrides = backend.dllOverrides {
+            parts.append(overrides)
+        }
+        return parts.joined(separator: ";")
+    }
+
+    private func launchEnvironment(
+        prefixURL: URL, winePath: String, gameMode: Bool, graphicsBackend: GraphicsBackend
+    ) -> [String: String] {
         var environment = ProcessInfo.processInfo.environment
         environment["WINEPREFIX"] = prefixURL.path
         environment["WINEDEBUG"] = "-all"
         // Stop Wine from scattering Linux .desktop/.lnk launchers on the macOS
-        // Desktop. BottleLite creates real .app launchers instead.
-        environment["WINEDLLOVERRIDES"] = "winemenubuilder.exe=d"
+        // Desktop (BottleLite creates real .app launchers instead), plus the
+        // chosen graphics backend's DLL overrides when it isn't the built-in one.
+        environment["WINEDLLOVERRIDES"] = Self.dllOverrides(for: graphicsBackend)
         // Ensure helper binaries that live alongside `wine` (wineserver,
         // wineboot) are resolvable when Wine shells out internally.
         let wineBin = URL(filePath: winePath).deletingLastPathComponent().path

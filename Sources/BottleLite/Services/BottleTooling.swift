@@ -57,6 +57,10 @@ protocol BottleToolRunning: Sendable {
     /// the user can answer interactive prompts.
     func installDependency(_ verb: WinetricksVerb, bottle: Bottle, winePath: String) throws
 
+    /// winetricks verbs already applied to the bottle, read from its
+    /// `winetricks.log`. Empty if none/unknown.
+    func installedVerbs(bottle: Bottle) -> Set<String>
+
     /// Hard-kills every Wine process in the bottle's prefix (`wineserver -k`).
     /// Best-effort and synchronous; used to tear a bottle down on quit/stop.
     func terminatePrefix(bottle: Bottle, winePath: String)
@@ -166,6 +170,21 @@ struct BottleTooling: BottleToolRunning {
         open.executableURL = URL(filePath: "/usr/bin/open")
         open.arguments = [scriptURL.path]
         try open.run()
+    }
+
+    func installedVerbs(bottle: Bottle) -> Set<String> {
+        guard
+            let prefixURL = try? BottleStorage.prefixURL(for: bottle, using: fileManager, create: false),
+            let log = try? String(
+                contentsOf: prefixURL.appending(path: "winetricks.log"), encoding: .utf8)
+        else { return [] }
+
+        let verbs =
+            log
+            .split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        return Set(verbs)
     }
 
     func runInTerminal(program: WindowsProgram, bottle: Bottle, winePath: String) throws {
