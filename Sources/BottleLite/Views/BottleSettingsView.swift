@@ -7,11 +7,13 @@ struct BottleSettingsView: View {
     @ObservedObject var store: BottleStore
     let bottle: Bottle
     @Environment(\.dismiss) private var dismiss
+    @State private var installed: Set<String> = []
 
     var body: some View {
         VStack(spacing: 0) {
             Form {
                 performanceSection
+                graphicsSection
                 componentsSection
                 setupSection
                 maintenanceSection
@@ -19,7 +21,7 @@ struct BottleSettingsView: View {
             .formStyle(.grouped)
             .scrollContentBackground(.hidden)
         }
-        .frame(width: 460, height: 540)
+        .frame(width: 460, height: 560)
         .toolbar {
             ToolbarItem(placement: .principal) {
                 Text(bottle.name).font(.headline)
@@ -27,6 +29,26 @@ struct BottleSettingsView: View {
             ToolbarItem(placement: .confirmationAction) {
                 Button("Done") { dismiss() }
             }
+        }
+        .task { installed = store.installedComponents(for: bottle) }
+    }
+
+    // MARK: - Graphics
+
+    private var graphicsSection: some View {
+        Section {
+            Picker("DirectX Backend", selection: graphicsBinding) {
+                ForEach(GraphicsBackend.allCases) { backend in
+                    Text(backend.title).tag(backend)
+                }
+            }
+            description(store.graphicsBackend(for: bottle).detail)
+        } header: {
+            Text("Graphics")
+        } footer: {
+            Text(
+                "Applies the next time you launch a program. Full speedups also need the backend's "
+                    + "libraries (the DXVK component below, or a Game Porting Toolkit Wine build).")
         }
     }
 
@@ -55,7 +77,20 @@ struct BottleSettingsView: View {
                             description(verb.detail)
                         }
                         Spacer()
-                        Button("Add") { store.installDependency(verb, in: bottle) }
+                        if installed.contains(verb.verb) {
+                            Menu {
+                                Button("Reinstall") { store.installDependency(verb, in: bottle) }
+                            } label: {
+                                Label("Installed", systemImage: "checkmark.circle.fill")
+                                    .labelStyle(.titleAndIcon)
+                                    .foregroundStyle(.green)
+                                    .font(.caption.weight(.medium))
+                            }
+                            .menuStyle(.borderlessButton)
+                            .fixedSize()
+                        } else {
+                            Button("Add") { store.installDependency(verb, in: bottle) }
+                        }
                     }
                 }
             } else {
@@ -74,7 +109,9 @@ struct BottleSettingsView: View {
         } header: {
             Text("Windows Components")
         } footer: {
-            Text("Only add what a game or app actually asks for — you don't need all of them.")
+            Text(
+                "Only add what a game or app needs. Windows components can't be cleanly uninstalled — "
+                    + "create a fresh bottle to start clean.")
         }
     }
 
@@ -123,6 +160,13 @@ struct BottleSettingsView: View {
         Binding(
             get: { store.isGameMode(bottle) },
             set: { store.setGameMode($0, for: bottle) }
+        )
+    }
+
+    private var graphicsBinding: Binding<GraphicsBackend> {
+        Binding(
+            get: { store.graphicsBackend(for: bottle) },
+            set: { store.setGraphicsBackend($0, for: bottle) }
         )
     }
 
