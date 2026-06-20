@@ -29,6 +29,9 @@ final class BottleStore: ObservableObject {
     /// Held while at least one Game Mode program is running to keep macOS from
     /// napping the app, sleeping the system, or coalescing timers.
     private var gameActivityToken: NSObjectProtocol?
+    /// Retains running installer processes so their termination handlers fire
+    /// (a released Process won't call back), enabling auto-scan when they exit.
+    private var runningInstallers: [Process] = []
 
     init(
         runtimeProbe: WineRuntimeProbing = WineRuntimeProbe(),
@@ -417,8 +420,27 @@ final class BottleStore: ObservableObject {
 
     func runInstaller(at url: URL, in bottle: Bottle) {
         withWinePath(action: "run an installer") { winePath in
-            try tooling.runInstaller(at: url, bottle: bottle, winePath: winePath)
-            lastMessage = "Running \(url.lastPathComponent) in \(bottle.name)..."
+            let bottleID = bottle.id
+            let installerName = url.lastPathComponent
+            let process = try tooling.runInstaller(at: url, bottle: bottle, winePath: winePath) {
+                [weak self] status in
+                Task { @MainActor in
+                    self?.installerDidFinish(bottleID: bottleID, name: installerName, status: status)
+                }
+            }
+            runningInstallers.append(process)
+            lastMessage = "Running \(installerName) in \(bottle.name)..."
+        }
+    }
+
+    /// Called when an installer process exits: drops the retained process and
+    /// auto-scans the prefix so the user immediately sees what was installed.
+    private func installerDidFinish(bottleID: Bottle.ID, name: String, status: Int32) {
+        runningInstallers.removeAll { !$0.isRunning }
+        guard let bottle = bottles.first(where: { $0.id == bottleID }) else { return }
+        presentInstalledPrograms(for: bottle)
+        if installedPrograms != nil {
+            lastMessage = "\(name) finished. Pick the app it installed to add it to \(bottle.name)."
         }
     }
 
