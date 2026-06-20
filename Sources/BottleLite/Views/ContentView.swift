@@ -3,6 +3,8 @@ import UniformTypeIdentifiers
 
 struct ContentView: View {
     @ObservedObject var store: BottleStore
+    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
+    @State private var showWelcome = false
 
     var body: some View {
         NavigationSplitView {
@@ -43,6 +45,15 @@ struct ContentView: View {
                 return
             }
             store.openWindowsFile(at: url)
+        }
+        .sheet(isPresented: $showWelcome) {
+            WelcomeView(store: store)
+        }
+        .task {
+            if !hasCompletedOnboarding { showWelcome = true }
+        }
+        .onChange(of: hasCompletedOnboarding) { _, completed in
+            if !completed { showWelcome = true }
         }
     }
 }
