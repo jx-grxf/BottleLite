@@ -100,7 +100,7 @@ private struct BottleActionsMenu: View {
             Button {
                 store.initializePrefix(for: bottle)
             } label: {
-                Label("Initialize Prefix", systemImage: "wand.and.stars")
+                Label("Prepare Bottle", systemImage: "wand.and.stars")
             }
             .disabled(store.isBusy(bottle))
 
@@ -145,7 +145,7 @@ private struct BottleActionsMenu: View {
                     }
                 }
             } label: {
-                Label("Install Dependency", systemImage: "shippingbox.and.arrow.backward")
+                Label("Fix Missing Components", systemImage: "shippingbox.and.arrow.backward")
             }
             .help("Add Windows components (fonts, runtimes, DirectX) to this bottle via winetricks")
         } else {

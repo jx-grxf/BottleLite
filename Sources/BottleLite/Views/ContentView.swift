@@ -29,7 +29,7 @@ struct ContentView: View {
                 Button {
                     store.isImporterPresented = true
                 } label: {
-                    Label("Import App", systemImage: "square.and.arrow.down")
+                    Label("Add Windows App", systemImage: "square.and.arrow.down")
                 }
                 .help("Add a Windows app (.exe) or installer (.msi) to the selected bottle")
             }
