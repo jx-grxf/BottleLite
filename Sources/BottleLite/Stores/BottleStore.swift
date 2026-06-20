@@ -497,6 +497,43 @@ final class BottleStore: ObservableObject {
         lastMessage = "Revealed the C: drive for \(bottle.name)."
     }
 
+    // MARK: - Steam
+
+    @Published private(set) var isInstallingSteam = false
+
+    /// One-click Steam: ensure a dedicated "Steam" bottle exists, download the
+    /// official SteamSetup.exe, and run it (auto-scan kicks in when it finishes).
+    func installSteam() {
+        guard !isInstallingSteam else { return }
+
+        refreshRuntime()
+        guard runtimeStatus.winePath != nil else {
+            lastMessage = "Install Wine first, then install Steam."
+            isWineInstallPromptPresented = true
+            return
+        }
+
+        let bottle =
+            bottles.first { $0.name == "Steam" }
+            ?? {
+                createBottle(named: "Steam"); return selectedBottle
+            }()
+        guard let bottle else { return }
+        selection = bottle.id
+
+        isInstallingSteam = true
+        lastMessage = "Downloading Steam…"
+        Task {
+            defer { isInstallingSteam = false }
+            do {
+                let installer = try await SteamInstaller.downloadSetup()
+                runInstaller(at: installer, in: bottle)
+            } catch {
+                lastMessage = "Could not download Steam: \(error.localizedDescription)"
+            }
+        }
+    }
+
     // MARK: - Installed programs
 
     /// Scans the bottle's prefix for installed executables and presents them so
