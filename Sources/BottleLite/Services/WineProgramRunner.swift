@@ -174,6 +174,9 @@ struct WineProgramRunner: ProgramRunning {
         var environment = ProcessInfo.processInfo.environment
         environment["WINEPREFIX"] = prefixURL.path
         environment["WINEDEBUG"] = "-all"
+        // Stop Wine from scattering Linux .desktop/.lnk launchers on the macOS
+        // Desktop. BottleLite creates real .app launchers instead.
+        environment["WINEDLLOVERRIDES"] = "winemenubuilder.exe=d"
         // Ensure helper binaries that live alongside `wine` (wineserver,
         // wineboot) are resolvable when Wine shells out internally.
         let wineBin = URL(filePath: winePath).deletingLastPathComponent().path
