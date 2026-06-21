@@ -9,11 +9,11 @@ struct WineProgramRunnerTests {
         #expect(ProgramTermination(status: 42).message(for: "Demo") == "Demo exited with code 42.")
     }
 
-    @Test func steamGetsCEFGPUWorkaroundArguments() {
+    @Test func steamGetsGPTKWorkaroundArguments() {
         let steam = URL(filePath: "/x/Steam/Steam.exe")
         let args = WineProgramRunner.injectedArguments(forExecutableAt: steam, userArguments: "")
-        #expect(args.contains("-cef-disable-gpu"))
-        #expect(args.contains("-cef-disable-gpu-compositing"))
+        #expect(args.contains("-allosarches"))
+        #expect(args.contains("-cef-force-32bit"))
     }
 
     @Test func nonSteamGetsNoInjectedArguments() {
@@ -23,9 +23,12 @@ struct WineProgramRunnerTests {
 
     @Test func steamRespectsUserProvidedCEFFlags() {
         let steam = URL(filePath: "/x/Steam/Steam.exe")
-        let args = WineProgramRunner.injectedArguments(
-            forExecutableAt: steam, userArguments: "-cef-disable-gpu")
-        #expect(args.isEmpty)
+        #expect(
+            WineProgramRunner.injectedArguments(forExecutableAt: steam, userArguments: "-cef-force-32bit")
+                .isEmpty)
+        #expect(
+            WineProgramRunner.injectedArguments(forExecutableAt: steam, userArguments: "-allosarches")
+                .isEmpty)
     }
 
     @Test func launchThrowsWhenExecutableMissing() {

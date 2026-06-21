@@ -74,6 +74,8 @@ struct WineProgramRunner: ProgramRunning {
             throw ProgramRunError.executableMissing
         }
 
+        Self.ensureSteamConfig(forExecutableAt: executableURL, fileManager: fileManager)
+
         let prefixURL = try BottleStorage.prefixURL(for: bottle, using: fileManager)
         let logURL = try? BottleStorage.logURL(for: program, in: bottle, using: fileManager)
 
@@ -114,19 +116,31 @@ struct WineProgramRunner: ProgramRunning {
     ]
 
     /// Extra arguments BottleLite injects for known-problematic executables so
-    /// they "just work" the way CrossOver special-cases them. Skipped if the user
-    /// already passed an overlapping flag.
+    /// they "just work" the way CrossOver/Whisky special-case them. Skipped if
+    /// the user already passed overlapping flags.
     ///
-    /// Steam: its embedded Chromium (`steamwebhelper`) can't create a GPU /
-    /// offscreen render context under Wine and crash-loops with
-    /// "Failed creating offscreen shared JS context" / repeated NOTREACHED, so
-    /// the client window never appears. Disabling CEF GPU acceleration — exactly
-    /// what Steam's own "restart with GPU acceleration disabled" recovery does —
-    /// lets the UI render in software.
+    /// Steam: under a Game Porting Toolkit Wine the 64-bit `steamwebhelper`
+    /// (Steam's embedded Chromium) crash-loops with repeated NOTREACHED and the
+    /// client window never appears. The community fix is to force the 32-bit
+    /// web helper and allow all OS architectures — `-allosarches
+    /// -cef-force-32bit`. See mybyways.com "Running Steam in Game Porting
+    /// Toolkit".
     static func injectedArguments(forExecutableAt url: URL, userArguments: String) -> [String] {
         guard url.lastPathComponent.lowercased() == "steam.exe" else { return [] }
-        guard !userArguments.lowercased().contains("-cef") else { return [] }
-        return ["-cef-disable-gpu", "-cef-disable-gpu-compositing"]
+        let lower = userArguments.lowercased()
+        guard !lower.contains("-cef"), !lower.contains("-allosarches") else { return [] }
+        return ["-allosarches", "-cef-force-32bit"]
+    }
+
+    /// Steam's bootstrapper loops on "Background update loop checking for
+    /// update" under Wine and never hands off to the client. A `steam.cfg` next
+    /// to `Steam.exe` with `BootStrapperInhibitAll=Enable` stops that loop.
+    /// Best-effort; written once if absent. See mybyways.com GPTK guide.
+    static func ensureSteamConfig(forExecutableAt url: URL, fileManager: FileManager = .default) {
+        guard url.lastPathComponent.lowercased() == "steam.exe" else { return }
+        let configURL = url.deletingLastPathComponent().appending(path: "steam.cfg")
+        guard !fileManager.fileExists(atPath: configURL.path) else { return }
+        try? "BootStrapperInhibitAll=Enable\n".write(to: configURL, atomically: true, encoding: .utf8)
     }
 
     /// Splits a raw argument string into argv tokens, honoring single and double
