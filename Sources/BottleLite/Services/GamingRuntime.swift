@@ -39,6 +39,16 @@ enum GamingRuntime {
 
     static var isGPTKInstalled: Bool { GraphicsBackend.isD3DMetalAvailable }
 
+    /// Whether the given Wine binary is a Game Porting Toolkit (x86 / Rosetta)
+    /// build. This matters because DXVK can't run on it: Homebrew's MoltenVK is
+    /// arm64 and a Rosetta x86 process can't load an arm64 dylib. On GPTK Wine,
+    /// D3DMetal is the only working accelerated backend.
+    static func isGPTKWine(_ path: String) -> Bool {
+        path.contains("Game Porting Toolkit")
+            || path == "/opt/homebrew/bin/wine64"
+            || path == "/usr/local/bin/wine64"
+    }
+
     /// Whether any gaming-grade Wine (GPTK app bundle, Apple GPTK build, or
     /// Gcenx CrossOver Wine) is present. Plain Homebrew `wine-stable` is not
     /// enough to run the modern Steam client — this is.

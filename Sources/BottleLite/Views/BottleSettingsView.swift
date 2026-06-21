@@ -44,7 +44,24 @@ struct BottleSettingsView: View {
             }
             description(store.graphicsBackend(for: bottle).detail)
 
-            if store.graphicsBackend(for: bottle) == .dxvk {
+            if store.graphicsBackend(for: bottle) == .dxvk, !store.isDXVKCompatibleWithWine {
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("DXVK can't run on this Wine build")
+                        description(
+                            "Game Porting Toolkit Wine is x86 and can't load the arm64 MoltenVK. "
+                                + "Switch this bottle to D3DMetal for accelerated graphics.")
+                    }
+                    Spacer()
+                    Button("Use D3DMetal") {
+                        store.setGraphicsBackend(.d3dMetal, for: bottle)
+                    }
+                }
+            }
+
+            if store.graphicsBackend(for: bottle) == .dxvk, store.isDXVKCompatibleWithWine {
                 HStack(alignment: .firstTextBaseline) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("MoltenVK (system)")

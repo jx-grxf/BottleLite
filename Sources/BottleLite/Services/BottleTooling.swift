@@ -246,6 +246,12 @@ struct BottleTooling: BottleToolRunning {
         // Keep installers/winecfg from littering the Desktop with .desktop/.lnk
         // launchers; BottleLite generates native .app launchers instead.
         environment["WINEDLLOVERRIDES"] = "winemenubuilder.exe=d"
+        // winetricks and other helpers look for a `wine` binary by name. The
+        // Game Porting Toolkit build only ships `wine64`, so point WINE/WINE64
+        // at the actual binary explicitly or they fail with "WINE is wine,
+        // which is neither on the path nor an executable file".
+        environment["WINE"] = winePath
+        environment["WINE64"] = winePath
         let wineBin = URL(filePath: winePath).deletingLastPathComponent().path
         if let existingPath = environment["PATH"], !existingPath.isEmpty {
             environment["PATH"] = "\(wineBin):\(existingPath)"

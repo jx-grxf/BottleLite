@@ -714,6 +714,14 @@ final class BottleStore: ObservableObject {
     /// Homebrew `wine-stable` can't run the modern Steam client; this can.
     var isGamingWineInstalled: Bool { GamingRuntime.isGamingWineInstalled }
 
+    /// Whether DXVK can actually run on the detected Wine. False for a Game
+    /// Porting Toolkit (x86) Wine, where the arm64 MoltenVK can't be loaded —
+    /// there, D3DMetal is the backend to use instead.
+    var isDXVKCompatibleWithWine: Bool {
+        guard let path = runtimeStatus.winePath else { return true }
+        return !GamingRuntime.isGPTKWine(path)
+    }
+
     /// Installs Gcenx's Game Porting Toolkit (D3DMetal / DirectX 12) in Terminal.
     func installGamePortingToolkit() async {
         guard !isInstallingGPTK else { return }
