@@ -135,10 +135,16 @@ struct WineProgramRunner: ProgramRunning {
     /// Steam's bootstrapper loops on "Background update loop checking for
     /// update" under Wine and never hands off to the client. A `steam.cfg` next
     /// to `Steam.exe` with `BootStrapperInhibitAll=Enable` stops that loop.
-    /// Best-effort; written once if absent. See mybyways.com GPTK guide.
+    ///
+    /// Only written once Steam has already bootstrapped its client (its `bin/cef`
+    /// folder exists). Writing it before the first run would block the initial
+    /// component download (including the 32-bit CEF that -cef-force-32bit needs).
+    /// Best-effort. See mybyways.com GPTK guide.
     static func ensureSteamConfig(forExecutableAt url: URL, fileManager: FileManager = .default) {
         guard url.lastPathComponent.lowercased() == "steam.exe" else { return }
-        let configURL = url.deletingLastPathComponent().appending(path: "steam.cfg")
+        let steamDir = url.deletingLastPathComponent()
+        guard fileManager.fileExists(atPath: steamDir.appending(path: "bin/cef").path) else { return }
+        let configURL = steamDir.appending(path: "steam.cfg")
         guard !fileManager.fileExists(atPath: configURL.path) else { return }
         try? "BootStrapperInhibitAll=Enable\n".write(to: configURL, atomically: true, encoding: .utf8)
     }
