@@ -23,11 +23,26 @@ struct BottleLiteApp: App {
                 }
                 .keyboardShortcut("n", modifiers: [.command])
 
-                Button("Import Windows Executable...") {
+                Menu("New Bottle from Template") {
+                    ForEach(BottleType.allCases) { type in
+                        Button(type.title) { store.createBottle(type: type) }
+                    }
+                }
+
+                Divider()
+
+                Button("Import Windows App…") {
                     store.isImporterPresented = true
                 }
                 .keyboardShortcut("o", modifiers: [.command])
+
+                Button("Run Installer…") {
+                    store.isInstallerImporterPresented = true
+                }
+                .keyboardShortcut("o", modifiers: [.command, .shift])
             }
+
+            BottleCommands(store: store)
 
             CommandGroup(after: .toolbar) {
                 Button("Refresh Wine Runtime") {
@@ -57,6 +72,40 @@ struct BottleLiteApp: App {
 
     static let repositoryURL = URL(string: "https://github.com/jx-grxf/BottleLite")!
     static let issuesURL = URL(string: "https://github.com/jx-grxf/BottleLite/issues")!
+}
+
+/// A "Bottle" menu acting on the currently selected bottle, so the common
+/// per-bottle actions are reachable from the menu bar (and get shortcuts), not
+/// only from the toolbar/sidebar.
+private struct BottleCommands: Commands {
+    @ObservedObject var store: BottleStore
+
+    var body: some Commands {
+        CommandMenu("Bottle") {
+            Button("Bottle Settings…") {
+                store.isBottleSettingsPresented = true
+            }
+            .keyboardShortcut(",", modifiers: [.command, .shift])
+            .disabled(store.selectedBottle == nil)
+
+            Button("Wine Configuration…") {
+                if let bottle = store.selectedBottle { store.openConfiguration(for: bottle) }
+            }
+            .disabled(store.selectedBottle == nil)
+
+            Divider()
+
+            Button("Reveal C: Drive in Finder") {
+                if let bottle = store.selectedBottle { store.revealDriveC(for: bottle) }
+            }
+            .disabled(store.selectedBottle == nil)
+
+            Button("Prepare Bottle") {
+                if let bottle = store.selectedBottle { store.initializePrefix(for: bottle) }
+            }
+            .disabled(store.selectedBottle == nil)
+        }
+    }
 }
 
 private struct UpdateCommands: Commands {
