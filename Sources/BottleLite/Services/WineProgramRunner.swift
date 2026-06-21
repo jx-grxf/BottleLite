@@ -129,7 +129,11 @@ struct WineProgramRunner: ProgramRunning {
         guard url.lastPathComponent.lowercased() == "steam.exe" else { return [] }
         let lower = userArguments.lowercased()
         guard !lower.contains("-cef"), !lower.contains("-allosarches") else { return [] }
-        return ["-allosarches", "-cef-force-32bit"]
+        // Force the 32-bit web helper (the 64-bit one crash-loops on GPTK) AND
+        // disable its GPU/compositing path (the offscreen render context can't be
+        // created under Wine) — the union of the two documented Steam-on-Wine
+        // fixes, matching Steam's own "restart with GPU acceleration disabled".
+        return ["-allosarches", "-cef-force-32bit", "-cef-disable-gpu", "-cef-disable-gpu-compositing"]
     }
 
     /// Steam's bootstrapper loops on "Background update loop checking for
