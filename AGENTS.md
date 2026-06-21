@@ -18,8 +18,8 @@ Brain working rules:
 - On new features, refactors, releases, and bugfixes, update the relevant notes or
   add new ones linked with `[[wikilinks]]`.
 - Fix stale notes instead of creating duplicates.
-- `Brain/` and `CLAUDE.md` are local agent context and are not versioned
-  (`.gitignore`). `AGENTS.md` is the committed, public agent guide.
+- `Brain/` is a local-only knowledge vault (gitignored). `AGENTS.md` is the
+  committed, public agent guide.
 
 ## Build & Run
 

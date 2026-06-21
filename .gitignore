@@ -7,6 +7,5 @@ xcuserdata/
 *.xcuserstate
 *.swp
 
-# Local agent context (not versioned)
+# Local knowledge vault (not versioned)
 Brain/
-CLAUDE.md
