@@ -6,3 +6,7 @@ dist/
 xcuserdata/
 *.xcuserstate
 *.swp
+
+# Local agent context (not versioned)
+Brain/
+CLAUDE.md
