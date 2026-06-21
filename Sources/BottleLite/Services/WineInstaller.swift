@@ -79,7 +79,10 @@ struct HomebrewGPTKInstaller: GamePortingToolkitInstalling {
                 + "and ask to replace plain Wine.",
             brewCommands: [
                 "tap gcenx/wine",
-                "install --cask --no-quarantine game-porting-toolkit",
+                // GPTK conflicts with plain wine-stable; remove it first (no-op
+                // if absent). GPTK supersedes it as the bottle's Wine.
+                "uninstall --cask wine-stable || true",
+                "install --cask game-porting-toolkit",
             ],
             doneNote:
                 "Gaming-grade Wine installed. Reopen BottleLite — it will use it automatically; "
