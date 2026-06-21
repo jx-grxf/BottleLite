@@ -79,7 +79,9 @@ struct WineProgramRunner: ProgramRunning {
 
         let process = Process()
         process.executableURL = URL(filePath: winePath)
-        process.arguments = [program.path] + Self.parseArguments(program.arguments)
+        process.arguments =
+            [program.path] + Self.parseArguments(program.arguments)
+            + Self.injectedArguments(forExecutableAt: executableURL, userArguments: program.arguments)
         process.currentDirectoryURL = Self.workingDirectory(for: executableURL)
         process.environment = launchEnvironment(
             prefixURL: prefixURL, winePath: winePath, gameMode: gameMode,
@@ -110,6 +112,22 @@ struct WineProgramRunner: ProgramRunning {
     static let binSubfolders: Set<String> = [
         "bin", "bin_win32", "bin_win64", "bin32", "bin64", "binaries", "win32", "win64",
     ]
+
+    /// Extra arguments BottleLite injects for known-problematic executables so
+    /// they "just work" the way CrossOver special-cases them. Skipped if the user
+    /// already passed an overlapping flag.
+    ///
+    /// Steam: its embedded Chromium (`steamwebhelper`) can't create a GPU /
+    /// offscreen render context under Wine and crash-loops with
+    /// "Failed creating offscreen shared JS context" / repeated NOTREACHED, so
+    /// the client window never appears. Disabling CEF GPU acceleration — exactly
+    /// what Steam's own "restart with GPU acceleration disabled" recovery does —
+    /// lets the UI render in software.
+    static func injectedArguments(forExecutableAt url: URL, userArguments: String) -> [String] {
+        guard url.lastPathComponent.lowercased() == "steam.exe" else { return [] }
+        guard !userArguments.lowercased().contains("-cef") else { return [] }
+        return ["-cef-disable-gpu", "-cef-disable-gpu-compositing"]
+    }
 
     /// Splits a raw argument string into argv tokens, honoring single and double
     /// quotes so paths with spaces survive (e.g. `-config "My Game/cfg.ini"`).
