@@ -62,9 +62,18 @@ enum GamingRuntime {
         return gamingWines.contains { FileManager.default.isExecutableFile(atPath: $0) }
     }
 
-    /// Homebrew lib directories that may hold libMoltenVK / libvulkan / GPTK.
+    /// Homebrew lib directories that may hold libMoltenVK / libvulkan.
     static var librarySearchPaths: [String] {
         brewPrefixes.map { "\($0)/lib" }.filter { FileManager.default.fileExists(atPath: $0) }
+    }
+
+    /// Directories holding the GPTK D3DMetal runtime (libd3dshared.dylib +
+    /// D3DMetal.framework). The builtin d3d DLLs dlopen these at runtime.
+    static var d3dMetalLibrarySearchPaths: [String] {
+        [
+            "/Applications/Game Porting Toolkit.app/Contents/Resources/external",
+            "\(gptkAppRoot)/lib/external",
+        ].filter { FileManager.default.fileExists(atPath: $0) }
     }
 
     /// Extra launch environment so the chosen backend's libraries are
@@ -72,6 +81,7 @@ enum GamingRuntime {
     static func environment(for backend: GraphicsBackend) -> [String: String] {
         var env: [String: String] = [:]
 
+        let searchPaths: [String]
         switch backend {
         case .wineD3D:
             return env
@@ -79,13 +89,16 @@ enum GamingRuntime {
             if let icd = moltenVKICD {
                 env["VK_ICD_FILENAMES"] = icd
             }
+            searchPaths = librarySearchPaths
         case .d3dMetal:
-            break
+            // D3DMetal needs its own runtime on the dylib search path, not the
+            // Homebrew (arm64) libs that DXVK uses.
+            searchPaths = d3dMetalLibrarySearchPaths
         }
 
-        if backend != .wineD3D, !librarySearchPaths.isEmpty {
+        if !searchPaths.isEmpty {
             let existing = ProcessInfo.processInfo.environment["DYLD_FALLBACK_LIBRARY_PATH"]
-            let parts = librarySearchPaths + ["/usr/lib"] + (existing.map { [$0] } ?? [])
+            let parts = searchPaths + ["/usr/lib"] + (existing.map { [$0] } ?? [])
             env["DYLD_FALLBACK_LIBRARY_PATH"] = parts.joined(separator: ":")
         }
 

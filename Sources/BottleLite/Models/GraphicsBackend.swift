@@ -35,7 +35,12 @@ enum GraphicsBackend: String, Codable, CaseIterable, Identifiable, Sendable {
     var dllOverrides: String? {
         switch self {
         case .wineD3D: nil
-        case .dxvk, .d3dMetal: "dxgi,d3d9,d3d10core,d3d11=n,b"
+        // DXVK: prefer the native DXVK DLLs copied into the prefix.
+        case .dxvk: "dxgi,d3d9,d3d10core,d3d11=n,b"
+        // D3DMetal: force Wine's *builtin* DLLs, which in a Game Porting Toolkit
+        // Wine are the D3DMetal implementation. Builtin-only (`=b`) so any DXVK
+        // DLLs left in the prefix can't shadow them. Includes d3d12 for DX12.
+        case .d3dMetal: "d3d9,d3d10core,d3d11,d3d12,dxgi=b"
         }
     }
 
