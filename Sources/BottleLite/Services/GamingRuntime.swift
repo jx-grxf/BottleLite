@@ -8,6 +8,17 @@ import Foundation
 enum GamingRuntime {
     static let brewPrefixes = ["/opt/homebrew", "/usr/local"]
 
+    /// Gcenx's prebuilt Game Porting Toolkit app bundle. It ships a
+    /// CrossOver-lineage Wine (which runs the modern Steam client) plus
+    /// D3DMetal, so we treat its presence as "gaming-grade Wine installed".
+    static let gptkAppRoot = "/Applications/Game Porting Toolkit.app/Contents/Resources/wine"
+    static var gptkAppWine64: String { "\(gptkAppRoot)/bin/wine64" }
+
+    /// Whether the Gcenx GPTK app bundle (CrossOver Wine + D3DMetal) is present.
+    static var isGPTKAppInstalled: Bool {
+        FileManager.default.isExecutableFile(atPath: gptkAppWine64)
+    }
+
     /// Path to the MoltenVK ICD manifest if it's installed (e.g. via
     /// `brew install molten-vk`), else nil. Homebrew puts it under `etc/`.
     static var moltenVKICD: String? {
@@ -27,6 +38,19 @@ enum GamingRuntime {
     static var isMoltenVKInstalled: Bool { moltenVKICD != nil || moltenVKDylib != nil }
 
     static var isGPTKInstalled: Bool { GraphicsBackend.isD3DMetalAvailable }
+
+    /// Whether any gaming-grade Wine (GPTK app bundle, Apple GPTK build, or
+    /// Gcenx CrossOver Wine) is present. Plain Homebrew `wine-stable` is not
+    /// enough to run the modern Steam client — this is.
+    static var isGamingWineInstalled: Bool {
+        let gamingWines = [
+            gptkAppWine64,
+            "/opt/homebrew/opt/game-porting-toolkit/bin/wine64",
+            "/usr/local/opt/game-porting-toolkit/bin/wine64",
+            "/Applications/Wine Crossover.app/Contents/Resources/wine/bin/wine64",
+        ]
+        return gamingWines.contains { FileManager.default.isExecutableFile(atPath: $0) }
+    }
 
     /// Homebrew lib directories that may hold libMoltenVK / libvulkan / GPTK.
     static var librarySearchPaths: [String] {

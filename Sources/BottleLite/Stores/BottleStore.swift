@@ -710,7 +710,11 @@ final class BottleStore: ObservableObject {
 
     var isGPTKInstalled: Bool { GraphicsBackend.isD3DMetalAvailable }
 
-    /// Installs Apple's Game Porting Toolkit (D3DMetal / DirectX 12) in Terminal.
+    /// Whether a gaming-grade Wine (GPTK / CrossOver lineage) is present. Plain
+    /// Homebrew `wine-stable` can't run the modern Steam client; this can.
+    var isGamingWineInstalled: Bool { GamingRuntime.isGamingWineInstalled }
+
+    /// Installs Gcenx's Game Porting Toolkit (D3DMetal / DirectX 12) in Terminal.
     func installGamePortingToolkit() async {
         guard !isInstallingGPTK else { return }
 

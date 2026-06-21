@@ -65,18 +65,25 @@ protocol GamePortingToolkitInstalling: Sendable {
     func openInstaller() async throws
 }
 
-/// Installs Apple's Game Porting Toolkit (D3DMetal, DirectX 12 → Metal) via
-/// Homebrew. Heavy and may need Rosetta + an Apple download; best-effort.
+/// Installs Gcenx's prebuilt Game Porting Toolkit (a CrossOver-lineage Wine +
+/// D3DMetal). Unlike Apple's source-built tap, this is a ready-made app bundle,
+/// so it installs in minutes and gives the Wine build that actually runs the
+/// modern Steam client and DirectX 12 games. Needs Rosetta on Apple Silicon.
 struct HomebrewGPTKInstaller: GamePortingToolkitInstalling {
     func openInstaller() async throws {
         try await HomebrewInstall.openInTerminal(
-            title: "BottleLite — Game Porting Toolkit",
-            note: "Installs Apple's D3DMetal (DirectX 12 → Metal). This is a large download.",
+            title: "BottleLite — gaming-grade Wine (Game Porting Toolkit)",
+            note:
+                "Installs a CrossOver-lineage Wine + Apple's D3DMetal. This is what runs the "
+                + "modern Steam client and DirectX 12 games. Large download; may install Rosetta "
+                + "and ask to replace plain Wine.",
             brewCommands: [
-                "tap apple/apple https://github.com/apple/homebrew-apple",
-                "install apple/apple/game-porting-toolkit",
+                "tap gcenx/wine",
+                "install --cask --no-quarantine game-porting-toolkit",
             ],
-            doneNote: "Game Porting Toolkit installed. Reopen BottleLite and choose D3DMetal."
+            doneNote:
+                "Gaming-grade Wine installed. Reopen BottleLite — it will use it automatically; "
+                + "relaunch Steam or your game."
         )
     }
 }

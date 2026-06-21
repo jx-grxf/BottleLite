@@ -11,7 +11,10 @@ struct WineRuntimeProbe: WineRuntimeProbing {
     /// (Apple's Game Porting Toolkit, Gcenx's CrossOver-based Wine) come before
     /// plain Homebrew Wine so D3DMetal/DXVK have a runtime that supports them.
     static let candidatePaths = [
-        // Game Porting Toolkit (D3DMetal-capable)
+        // Gcenx Game Porting Toolkit (prebuilt CrossOver Wine + D3DMetal). This
+        // is the build that runs the modern Steam client and DX12 games.
+        GamingRuntime.gptkAppWine64,
+        // Apple's Game Porting Toolkit (source build via Homebrew)
         "/opt/homebrew/opt/game-porting-toolkit/bin/wine64",
         "/usr/local/opt/game-porting-toolkit/bin/wine64",
         // Gcenx CrossOver-based Wine

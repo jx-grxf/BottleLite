@@ -50,6 +50,15 @@ struct ProgramFailureView: View {
 
     private var fixes: some View {
         VStack(spacing: 8) {
+            if !store.isGamingWineInstalled {
+                fixButton(
+                    "gamecontroller.fill", "Install gaming-grade Wine (recommended)",
+                    "Steam's client and modern games need a CrossOver-lineage Wine + D3DMetal, "
+                        + "not plain Wine. This is the actual fix."
+                ) {
+                    Task { await store.installGamePortingToolkit() }
+                }
+            }
             if let bottle, store.graphicsBackend(for: bottle) != .dxvk {
                 fixButton(
                     "bolt.fill", "Try DXVK graphics",
