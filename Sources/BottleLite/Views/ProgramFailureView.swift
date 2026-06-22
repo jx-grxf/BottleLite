@@ -59,7 +59,7 @@ struct ProgramFailureView: View {
                     Task { await store.installGamePortingToolkit() }
                 }
             }
-            if let bottle, store.graphicsBackend(for: bottle) != .dxvk {
+            if let bottle, store.isDXVKCompatible(for: bottle), store.graphicsBackend(for: bottle) != .dxvk {
                 fixButton(
                     "bolt.fill", "Try DXVK graphics",
                     "Download DXVK and switch this bottle to it."

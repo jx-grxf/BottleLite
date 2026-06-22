@@ -13,8 +13,10 @@ struct ShortcutBuilderTests {
     @Test func launchScriptWiresPrefixWineAndDisablesMenuBuilder() {
         let program = WindowsProgram(
             name: "Game", path: "/tmp/My Game/game.exe", validation: .valid, arguments: "-fullscreen")
+        let bottle = Bottle(name: "Test")
         let script = ShortcutBuilder.launchScript(
-            program: program, prefixPath: "/tmp/prefix", winePath: "/opt/homebrew/bin/wine")
+            program: program, bottle: bottle, prefixPath: "/tmp/prefix",
+            winePath: "/opt/homebrew/bin/wine")
 
         #expect(script.contains("export WINEPREFIX='/tmp/prefix'"))
         #expect(script.contains("winemenubuilder.exe=d"))

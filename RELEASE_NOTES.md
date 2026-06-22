@@ -1,3 +1,40 @@
+# BottleLite 0.2.0
+
+Gaming and runtime release: better Steam, smarter Wine selection, and a batch of
+launch-reliability fixes.
+
+## Highlights
+
+- **Per-bottle Wine runtime.** Each bottle can now pick its own Wine binary
+  (Bottle Settings → Wine Runtime). Game Porting Toolkit stays the default for
+  modern/DirectX games, but 32-bit and OpenGL titles that GPTK can't run (e.g.
+  AssaultCube — `alloc_pages_vprot` crash) can be pinned to a plain Wine. The
+  picker lists every detected Wine and offers to install one when only GPTK is
+  present.
+- **Steam launch hardening.** One-click Steam now requires a gaming-grade Wine
+  before installing, creates its bottle from the tuned Steam template (Game Mode +
+  fastest graphics), and only applies the 32-bit CEF workaround once Steam has
+  bootstrapped — so it can't block the first launch.
+- **Shortcut parity.** Generated `.app` launchers now use the exact same
+  environment (graphics-backend DLL overrides, Game Mode, library paths) and
+  injected arguments as launching inside BottleLite, so a program behaves the same
+  either way.
+
+## Fixes
+
+- Stopping a single program now tears down its Wine prefix (no orphaned helpers),
+  while leaving sibling programs in the same bottle running.
+- DXVK can no longer be installed or suggested on a Game Porting Toolkit Wine,
+  where the arm64 MoltenVK can't load — D3DMetal is offered instead.
+- `Prepare Bottle` surfaces `wineboot` failures instead of silently reporting
+  success.
+- `Game Mode` no longer sets `WINE_LARGE_ADDRESS_AWARE` on a GPTK Wine, where it
+  is a no-op for 64-bit apps and can crash 32-bit games.
+- The Wine version is cached, so launching a program no longer blocks the UI on a
+  `wine --version` subprocess.
+- Clearer status messages (relaunch the program, not the app, after a graphics or
+  DXVK change).
+
 # BottleLite 0.1.1
 
 Packaging-only update for the first preview release.

@@ -7,6 +7,8 @@ final class BottleStore: ObservableObject {
     @Published var bottles: [Bottle] { didSet { persist() } }
     @Published var selection: Bottle.ID?
     @Published var runtimeStatus: RuntimeStatus = .unknown
+    /// Every installed Wine binary, for the per-bottle runtime picker.
+    @Published private(set) var availableRuntimes: [DetectedRuntime] = []
     @Published var isImporterPresented = false
     @Published var isInstallerImporterPresented = false
     @Published var isBottleSettingsPresented = false
@@ -78,10 +80,38 @@ final class BottleStore: ObservableObject {
 
     func refreshRuntime() {
         runtimeStatus = runtimeProbe.detectRuntime()
+        availableRuntimes = runtimeProbe.detectAllRuntimes()
         if runtimeStatus.state == .ready, wineInstallState.isBusy {
             wineInstallState = .idle
             lastMessage = "\(runtimeStatus.displayName) is ready."
         }
+    }
+
+    /// The Wine binary a bottle should launch with: its explicit override (when
+    /// that binary still exists) else the auto-detected runtime.
+    func effectiveWinePath(for bottle: Bottle) -> String? {
+        if let override = bottle.winePathOverride,
+            FileManager.default.isExecutableFile(atPath: override)
+        {
+            return override
+        }
+        return runtimeStatus.winePath
+    }
+
+    func wineOverride(for bottle: Bottle) -> String? {
+        bottles.first { $0.id == bottle.id }?.winePathOverride
+    }
+
+    /// Sets (or clears, with `nil`) the explicit Wine runtime for a bottle.
+    func setWineOverride(_ path: String?, for bottle: Bottle) {
+        guard let index = bottles.firstIndex(where: { $0.id == bottle.id }) else { return }
+        guard bottles[index].winePathOverride != path else { return }
+        bottles[index].winePathOverride = path
+        let name = bottles[index].name
+        lastMessage =
+            path == nil
+            ? "\(name) now uses the automatic Wine runtime."
+            : "\(name) will use the selected Wine. Relaunch its programs to apply."
     }
 
     // MARK: - Bottles
@@ -110,7 +140,8 @@ final class BottleStore: ObservableObject {
         guard let index = bottles.firstIndex(where: { $0.id == bottle.id }) else { return }
         guard bottles[index].graphicsBackend != backend else { return }
         bottles[index].graphicsBackend = backend
-        lastMessage = "Graphics set to \(backend.title) for \(bottles[index].name). Restart the app to apply."
+        lastMessage =
+            "Graphics set to \(backend.title) for \(bottles[index].name). Relaunch the program to apply."
     }
 
     func graphicsBackend(for bottle: Bottle) -> GraphicsBackend {
@@ -132,6 +163,13 @@ final class BottleStore: ObservableObject {
     /// the DXVK backend has libraries to use.
     func installDXVK(for bottle: Bottle) {
         guard !dxvkInstalling.contains(bottle.id) else { return }
+        // DXVK needs the arm64 MoltenVK, which a Game Porting Toolkit (x86) Wine
+        // can't load — D3DMetal is the accelerated backend there. Never install
+        // DXVK against a GPTK Wine.
+        guard isDXVKCompatible(for: bottle) else {
+            lastMessage = "DXVK can't run on this Game Porting Toolkit Wine. Use D3DMetal instead."
+            return
+        }
         guard
             let prefixURL = try? BottleStorage.prefixURL(for: bottle, create: false),
             FileManager.default.fileExists(atPath: prefixURL.appending(path: "drive_c").path)
@@ -150,7 +188,7 @@ final class BottleStore: ObservableObject {
                 if let index = bottles.firstIndex(where: { $0.id == bottleID }) {
                     bottles[index].graphicsBackend = .dxvk
                 }
-                lastMessage = "DXVK installed into \(bottle.name). Relaunch the app to use it."
+                lastMessage = "DXVK installed into \(bottle.name). Relaunch the program to use it."
             } catch {
                 lastMessage = "Could not install DXVK: \(error.localizedDescription)"
             }
@@ -253,7 +291,7 @@ final class BottleStore: ObservableObject {
 
         refreshRuntime()
 
-        guard let winePath = runtimeStatus.winePath else {
+        guard let winePath = effectiveWinePath(for: bottle) else {
             lastMessage = "Install Wine first, then try \(program.name) again."
             isWineInstallPromptPresented = true
             return
@@ -312,6 +350,16 @@ final class BottleStore: ObservableObject {
         do {
             try programRunner.stop(launch)
             runningPrograms.removeValue(forKey: program.id)
+            // Terminating the launched Process doesn't reap Wine child processes
+            // (game helpers, Steam subprocesses). Hard-kill the prefix too — but
+            // only if no other program from the same bottle is still running, so
+            // we don't take a sibling down with it.
+            if let bottle = bottles.first(where: { $0.programs.contains { $0.id == program.id } }),
+                !bottle.programs.contains(where: { $0.id != program.id && runningPrograms[$0.id] != nil }),
+                let winePath = effectiveWinePath(for: bottle)
+            {
+                tooling.terminatePrefix(bottle: bottle, winePath: winePath)
+            }
             updatePowerAssertion()
             lastMessage = "Stopped \(program.name)."
         } catch {
@@ -337,11 +385,11 @@ final class BottleStore: ObservableObject {
             try? programRunner.stop(launch)
         }
 
-        if let winePath = runtimeStatus.winePath {
-            let activeBottles = bottles.filter { bottle in
-                bottle.programs.contains { runningPrograms[$0.id] != nil }
-            }
-            for bottle in activeBottles {
+        let activeBottles = bottles.filter { bottle in
+            bottle.programs.contains { runningPrograms[$0.id] != nil }
+        }
+        for bottle in activeBottles {
+            if let winePath = effectiveWinePath(for: bottle) {
                 tooling.terminatePrefix(bottle: bottle, winePath: winePath)
             }
         }
@@ -472,7 +520,7 @@ final class BottleStore: ObservableObject {
         in bottle: Bottle,
         destination: ShortcutDestination
     ) {
-        withWinePath(action: "create a launcher") { winePath in
+        withWinePath(for: bottle, action: "create a launcher") { winePath in
             let appURL = try ShortcutBuilder.createLauncher(
                 for: program, in: bottle, winePath: winePath, destination: destination)
             NSWorkspace.shared.activateFileViewerSelecting([appURL])
@@ -501,7 +549,7 @@ final class BottleStore: ObservableObject {
     // MARK: - Bottle tooling
 
     func openConfiguration(for bottle: Bottle) {
-        withWinePath(action: "open Wine configuration") { winePath in
+        withWinePath(for: bottle, action: "open Wine configuration") { winePath in
             try tooling.openConfiguration(bottle: bottle, winePath: winePath)
             lastMessage = "Opening Wine configuration for \(bottle.name)..."
         }
@@ -509,7 +557,7 @@ final class BottleStore: ObservableObject {
 
     func initializePrefix(for bottle: Bottle) {
         guard !busyBottles.contains(bottle.id) else { return }
-        withWinePath(action: "initialize the prefix") { winePath in
+        withWinePath(for: bottle, action: "initialize the prefix") { winePath in
             busyBottles.insert(bottle.id)
             lastMessage = "Initializing \(bottle.name)..."
             Task {
@@ -538,7 +586,7 @@ final class BottleStore: ObservableObject {
     }
 
     func runInstaller(at url: URL, in bottle: Bottle) {
-        withWinePath(action: "run an installer") { winePath in
+        withWinePath(for: bottle, action: "run an installer") { winePath in
             let bottleID = bottle.id
             let installerName = url.lastPathComponent
             let process = try tooling.runInstaller(at: url, bottle: bottle, winePath: winePath) {
@@ -564,7 +612,7 @@ final class BottleStore: ObservableObject {
     }
 
     func installDependency(_ verb: WinetricksVerb, in bottle: Bottle) {
-        withWinePath(action: "install \(verb.title)") { winePath in
+        withWinePath(for: bottle, action: "install \(verb.title)") { winePath in
             try tooling.installDependency(verb, bottle: bottle, winePath: winePath)
             lastMessage = "Installing \(verb.title) into \(bottle.name)..."
         }
@@ -596,10 +644,24 @@ final class BottleStore: ObservableObject {
             return
         }
 
+        // The modern Steam client only runs on a gaming-grade (GPTK /
+        // CrossOver-lineage) Wine — plain wine-stable crash-loops. Install that
+        // prerequisite first instead of downloading Steam into a Wine that
+        // can't run it.
+        guard isGamingWineInstalled else {
+            lastMessage =
+                "Steam needs a gaming-grade Wine (Game Porting Toolkit). Opening its installer first…"
+            Task { await installGamePortingToolkit() }
+            return
+        }
+
+        // Reuse an existing Steam bottle, otherwise create one from the tuned
+        // Steam template (Game Mode + fastest available graphics) — a bare
+        // wineD3D bottle can't run the modern Steam client well.
         let bottle =
             bottles.first { $0.name == "Steam" }
             ?? {
-                createBottle(named: "Steam"); return selectedBottle
+                createBottle(type: .steamGame); return selectedBottle
             }()
         guard let bottle else { return }
         selection = bottle.id
@@ -714,11 +776,12 @@ final class BottleStore: ObservableObject {
     /// Homebrew `wine-stable` can't run the modern Steam client; this can.
     var isGamingWineInstalled: Bool { GamingRuntime.isGamingWineInstalled }
 
-    /// Whether DXVK can actually run on the detected Wine. False for a Game
-    /// Porting Toolkit (x86) Wine, where the arm64 MoltenVK can't be loaded —
-    /// there, D3DMetal is the backend to use instead.
-    var isDXVKCompatibleWithWine: Bool {
-        guard let path = runtimeStatus.winePath else { return true }
+    /// Whether DXVK can actually run on a bottle's effective Wine. False for a
+    /// Game Porting Toolkit (x86) Wine, where the arm64 MoltenVK can't be loaded
+    /// — there, D3DMetal is the backend to use instead. Bottle-aware because the
+    /// runtime can be overridden per bottle.
+    func isDXVKCompatible(for bottle: Bottle) -> Bool {
+        guard let path = effectiveWinePath(for: bottle) else { return true }
         return !GamingRuntime.isGPTKWine(path)
     }
 
@@ -786,9 +849,10 @@ final class BottleStore: ObservableObject {
 
     // MARK: - Helpers
 
-    private func withWinePath(action: String, _ body: (String) throws -> Void) {
+    private func withWinePath(for bottle: Bottle? = nil, action: String, _ body: (String) throws -> Void) {
         refreshRuntime()
-        guard let winePath = runtimeStatus.winePath else {
+        let resolved = bottle.flatMap { effectiveWinePath(for: $0) } ?? runtimeStatus.winePath
+        guard let winePath = resolved else {
             lastMessage = "Install Wine first to \(action)."
             isWineInstallPromptPresented = true
             return

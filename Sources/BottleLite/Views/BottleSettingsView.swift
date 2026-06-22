@@ -12,6 +12,7 @@ struct BottleSettingsView: View {
     var body: some View {
         VStack(spacing: 0) {
             Form {
+                runtimeSection
                 performanceSection
                 graphicsSection
                 componentsSection
@@ -44,7 +45,7 @@ struct BottleSettingsView: View {
             }
             description(store.graphicsBackend(for: bottle).detail)
 
-            if store.graphicsBackend(for: bottle) == .dxvk, !store.isDXVKCompatibleWithWine {
+            if store.graphicsBackend(for: bottle) == .dxvk, !store.isDXVKCompatible(for: bottle) {
                 HStack(alignment: .top, spacing: 8) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .foregroundStyle(.orange)
@@ -61,7 +62,7 @@ struct BottleSettingsView: View {
                 }
             }
 
-            if store.graphicsBackend(for: bottle) == .dxvk, store.isDXVKCompatibleWithWine {
+            if store.graphicsBackend(for: bottle) == .dxvk, store.isDXVKCompatible(for: bottle) {
                 HStack(alignment: .firstTextBaseline) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("MoltenVK (system)")
@@ -117,6 +118,40 @@ struct BottleSettingsView: View {
             }
         } header: {
             Text("Graphics")
+        } footer: {
+            Text("Applies the next time you launch a program in this bottle.")
+        }
+    }
+
+    // MARK: - Wine runtime
+
+    private var runtimeSection: some View {
+        Section {
+            Picker("Wine Runtime", selection: wineBinding) {
+                Text("Automatic").tag(String?.none)
+                ForEach(store.availableRuntimes) { runtime in
+                    Text(runtime.label).tag(String?.some(runtime.path))
+                }
+            }
+            description(
+                "Most bottles should stay Automatic (the gaming-grade Game Porting Toolkit). "
+                    + "But GPTK can't run some 32-bit / OpenGL games — pick a plain Wine for those.")
+
+            if !store.availableRuntimes.contains(where: { !$0.isGPTK }) {
+                HStack(alignment: .firstTextBaseline) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("No plain Wine installed")
+                        description(
+                            "Only Game Porting Toolkit is detected. Install a plain Wine to run "
+                                + "32-bit games like AssaultCube, then select it above.")
+                    }
+                    Spacer()
+                    Button("Install…") { Task { await store.installWine() } }
+                        .disabled(store.wineInstallState.isBusy)
+                }
+            }
+        } header: {
+            Text("Wine Runtime")
         } footer: {
             Text("Applies the next time you launch a program in this bottle.")
         }
@@ -230,6 +265,13 @@ struct BottleSettingsView: View {
         Binding(
             get: { store.isGameMode(bottle) },
             set: { store.setGameMode($0, for: bottle) }
+        )
+    }
+
+    private var wineBinding: Binding<String?> {
+        Binding(
+            get: { store.wineOverride(for: bottle) },
+            set: { store.setWineOverride($0, for: bottle) }
         )
     }
 

@@ -23,7 +23,10 @@ struct HomebrewWineInstaller: WineInstalling, Sendable {
         try await HomebrewInstall.openInTerminal(
             title: "BottleLite Wine installer",
             note: "This may ask for your macOS password because Wine depends on system packages.",
-            brewCommand: "install --cask wine-stable",
+            // --force so it installs even when Game Porting Toolkit already owns the
+            // shared wine64/wineserver brew symlinks. BottleLite finds each Wine by
+            // its .app bundle path, so the two coexist and GPTK keeps working.
+            brewCommand: "install --cask --force wine-stable",
             doneNote: "Wine install finished. Go back to BottleLite and click Check Again."
         )
     }

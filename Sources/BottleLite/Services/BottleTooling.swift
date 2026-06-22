@@ -69,6 +69,7 @@ protocol BottleToolRunning: Sendable {
 enum BottleToolError: LocalizedError {
     case winetricksMissing
     case helperMissing(String)
+    case prefixInitFailed(String)
 
     var errorDescription: String? {
         switch self {
@@ -76,6 +77,8 @@ enum BottleToolError: LocalizedError {
             "winetricks is not installed. Install it with: brew install winetricks"
         case let .helperMissing(name):
             "Could not find the \(name) helper next to your Wine binary."
+        case let .prefixInitFailed(detail):
+            "Preparing the bottle failed: \(detail)"
         }
     }
 }
@@ -100,9 +103,22 @@ struct BottleTooling: BottleToolRunning {
     func initializePrefix(bottle: Bottle, winePath: String) async throws {
         let prefixURL = try BottleStorage.prefixURL(for: bottle, using: fileManager)
         let env = environment(prefixURL: prefixURL, winePath: winePath)
-        await Task.detached(priority: .userInitiated) {
-            _ = Shell.run(winePath, ["wineboot", "--init"], environment: env, timeout: 180)
+        let output = await Task.detached(priority: .userInitiated) {
+            Shell.run(winePath, ["wineboot", "--init"], environment: env, timeout: 180)
         }.value
+        guard let output else {
+            throw BottleToolError.prefixInitFailed("Could not start wineboot.")
+        }
+        guard output.succeeded else {
+            let stderr =
+                output.standardError
+                .split(whereSeparator: \.isNewline)
+                .last(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty })
+                .map(String.init)?
+                .trimmingCharacters(in: .whitespaces)
+            throw BottleToolError.prefixInitFailed(
+                stderr ?? "wineboot exited with code \(output.status).")
+        }
     }
 
     @discardableResult
