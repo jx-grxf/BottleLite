@@ -221,6 +221,7 @@ private func settingRow(
 
 /// A row that shows an install state: a green "Installed" badge, a spinner, or
 /// an Install button.
+@MainActor
 private func installRow(
     _ title: String, _ detail: String, installed: Bool, busy: Bool,
     install: @escaping () -> Void
