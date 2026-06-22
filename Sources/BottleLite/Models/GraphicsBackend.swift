@@ -35,19 +35,33 @@ enum GraphicsBackend: String, Codable, CaseIterable, Identifiable, Sendable {
     var dllOverrides: String? {
         switch self {
         case .wineD3D: nil
-        case .dxvk, .d3dMetal: "dxgi,d3d9,d3d10core,d3d11=n,b"
+        // DXVK: prefer the native DXVK DLLs copied into the prefix.
+        case .dxvk: "dxgi,d3d9,d3d10core,d3d11=n,b"
+        // D3DMetal: force Wine's *builtin* DLLs, which in a Game Porting Toolkit
+        // Wine are the D3DMetal implementation. Builtin-only (`=b`) so any DXVK
+        // DLLs left in the prefix can't shadow them. Includes d3d12 for DX12.
+        case .d3dMetal: "d3d9,d3d10core,d3d11,d3d12,dxgi=b"
         }
     }
 
     /// Whether Apple's Game Porting Toolkit (D3DMetal) appears to be installed.
     /// Best-effort: checks the libraries GPTK ships under common Homebrew prefixes.
     static var isD3DMetalAvailable: Bool {
+        let gptk = "/Applications/Game Porting Toolkit.app/Contents/Resources/wine"
         let candidates = [
             "/opt/homebrew/lib/external/libd3dshared.dylib",
             "/opt/homebrew/lib/libd3dshared.dylib",
             "/usr/local/lib/external/libd3dshared.dylib",
             "/usr/local/lib/libd3dshared.dylib",
+            // Gcenx prebuilt GPTK ships D3DMetal inside its app bundle.
+            "\(gptk)/lib/external/libd3dshared.dylib",
+            "\(gptk)/lib/wine/x86_64-unix/libd3dshared.dylib",
         ]
-        return candidates.contains { FileManager.default.fileExists(atPath: $0) }
+        if candidates.contains(where: { FileManager.default.fileExists(atPath: $0) }) {
+            return true
+        }
+        // Fall back to "the GPTK app is installed at all": its wine64 implies
+        // D3DMetal even if the dylib lives at a layout we don't enumerate.
+        return FileManager.default.isExecutableFile(atPath: "\(gptk)/bin/wine64")
     }
 }

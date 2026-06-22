@@ -11,6 +11,10 @@ struct Bottle: Identifiable, Hashable, Codable {
     var gameMode: Bool
     /// The Direct3D translation layer programs in this bottle launch with.
     var graphicsBackend: GraphicsBackend
+    /// An explicit Wine binary this bottle should launch with, overriding the
+    /// auto-detected runtime. Used to run 32-bit/OpenGL games on a plain Wine
+    /// when the preferred runtime (GPTK) can't run them. `nil` means automatic.
+    var winePathOverride: String?
 
     init(
         id: UUID = UUID(),
@@ -18,7 +22,8 @@ struct Bottle: Identifiable, Hashable, Codable {
         createdAt: Date = .now,
         programs: [WindowsProgram] = [],
         gameMode: Bool = false,
-        graphicsBackend: GraphicsBackend = .wineD3D
+        graphicsBackend: GraphicsBackend = .wineD3D,
+        winePathOverride: String? = nil
     ) {
         self.id = id
         self.name = name
@@ -26,10 +31,11 @@ struct Bottle: Identifiable, Hashable, Codable {
         self.programs = programs
         self.gameMode = gameMode
         self.graphicsBackend = graphicsBackend
+        self.winePathOverride = winePathOverride
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, name, createdAt, programs, gameMode, graphicsBackend
+        case id, name, createdAt, programs, gameMode, graphicsBackend, winePathOverride
     }
 
     // Custom decode so bottles persisted before these fields existed still load.
@@ -42,6 +48,7 @@ struct Bottle: Identifiable, Hashable, Codable {
         gameMode = try container.decodeIfPresent(Bool.self, forKey: .gameMode) ?? false
         graphicsBackend =
             try container.decodeIfPresent(GraphicsBackend.self, forKey: .graphicsBackend) ?? .wineD3D
+        winePathOverride = try container.decodeIfPresent(String.self, forKey: .winePathOverride)
     }
 }
 

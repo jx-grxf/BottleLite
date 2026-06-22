@@ -74,12 +74,18 @@ struct WineProgramRunner: ProgramRunning {
             throw ProgramRunError.executableMissing
         }
 
+        Self.ensureSteamConfig(forExecutableAt: executableURL, fileManager: fileManager)
+
         let prefixURL = try BottleStorage.prefixURL(for: bottle, using: fileManager)
         let logURL = try? BottleStorage.logURL(for: program, in: bottle, using: fileManager)
 
         let process = Process()
         process.executableURL = URL(filePath: winePath)
-        process.arguments = [program.path] + Self.parseArguments(program.arguments)
+        process.arguments =
+            [program.path] + Self.parseArguments(program.arguments)
+            + Self.injectedArguments(
+                forExecutableAt: executableURL, userArguments: program.arguments,
+                fileManager: fileManager)
         process.currentDirectoryURL = Self.workingDirectory(for: executableURL)
         process.environment = launchEnvironment(
             prefixURL: prefixURL, winePath: winePath, gameMode: gameMode,
@@ -110,6 +116,54 @@ struct WineProgramRunner: ProgramRunning {
     static let binSubfolders: Set<String> = [
         "bin", "bin_win32", "bin_win64", "bin32", "bin64", "binaries", "win32", "win64",
     ]
+
+    /// Extra arguments BottleLite injects for known-problematic executables so
+    /// they "just work" the way CrossOver/Whisky special-case them. Skipped if
+    /// the user already passed overlapping flags.
+    ///
+    /// Steam: under a Game Porting Toolkit Wine the 64-bit `steamwebhelper`
+    /// (Steam's embedded Chromium) crash-loops with repeated NOTREACHED and the
+    /// client window never appears. The community fix is to force the 32-bit
+    /// web helper and allow all OS architectures — `-allosarches
+    /// -cef-force-32bit`. See mybyways.com "Running Steam in Game Porting
+    /// Toolkit".
+    static func injectedArguments(
+        forExecutableAt url: URL, userArguments: String, fileManager: FileManager = .default
+    ) -> [String] {
+        guard url.lastPathComponent.lowercased() == "steam.exe" else { return [] }
+        let lower = userArguments.lowercased()
+        guard !lower.contains("-cef"), !lower.contains("-allosarches") else { return [] }
+        // Only apply the 32-bit-CEF workaround once Steam has bootstrapped its
+        // CEF component (its `bin/cef` exists). Forcing 32-bit CEF on the very
+        // first run — before that component has downloaded — can block the
+        // bootstrap the workaround itself depends on. Same gate as steam.cfg.
+        let steamDir = url.deletingLastPathComponent()
+        guard fileManager.fileExists(atPath: steamDir.appending(path: "bin/cef").path) else {
+            return []
+        }
+        // Force the 32-bit web helper (the 64-bit one crash-loops on GPTK) AND
+        // disable its GPU/compositing path (the offscreen render context can't be
+        // created under Wine) — the union of the two documented Steam-on-Wine
+        // fixes, matching Steam's own "restart with GPU acceleration disabled".
+        return ["-allosarches", "-cef-force-32bit", "-cef-disable-gpu", "-cef-disable-gpu-compositing"]
+    }
+
+    /// Steam's bootstrapper loops on "Background update loop checking for
+    /// update" under Wine and never hands off to the client. A `steam.cfg` next
+    /// to `Steam.exe` with `BootStrapperInhibitAll=Enable` stops that loop.
+    ///
+    /// Only written once Steam has already bootstrapped its client (its `bin/cef`
+    /// folder exists). Writing it before the first run would block the initial
+    /// component download (including the 32-bit CEF that -cef-force-32bit needs).
+    /// Best-effort. See mybyways.com GPTK guide.
+    static func ensureSteamConfig(forExecutableAt url: URL, fileManager: FileManager = .default) {
+        guard url.lastPathComponent.lowercased() == "steam.exe" else { return }
+        let steamDir = url.deletingLastPathComponent()
+        guard fileManager.fileExists(atPath: steamDir.appending(path: "bin/cef").path) else { return }
+        let configURL = steamDir.appending(path: "steam.cfg")
+        guard !fileManager.fileExists(atPath: configURL.path) else { return }
+        try? "BootStrapperInhibitAll=Enable\n".write(to: configURL, atomically: true, encoding: .utf8)
+    }
 
     /// Splits a raw argument string into argv tokens, honoring single and double
     /// quotes so paths with spaces survive (e.g. `-config "My Game/cfg.ini"`).
@@ -186,14 +240,10 @@ struct WineProgramRunner: ProgramRunning {
         prefixURL: URL, winePath: String, gameMode: Bool, graphicsBackend: GraphicsBackend
     ) -> [String: String] {
         var environment = ProcessInfo.processInfo.environment
-        environment["WINEPREFIX"] = prefixURL.path
-        environment["WINEDEBUG"] = "-all"
-        // Stop Wine from scattering Linux .desktop/.lnk launchers on the macOS
-        // Desktop (BottleLite creates real .app launchers instead), plus the
-        // chosen graphics backend's DLL overrides when it isn't the built-in one.
-        environment["WINEDLLOVERRIDES"] = Self.dllOverrides(for: graphicsBackend)
         // Ensure helper binaries that live alongside `wine` (wineserver,
-        // wineboot) are resolvable when Wine shells out internally.
+        // wineboot) are resolvable when Wine shells out internally. PATH must
+        // prepend to the inherited value, so it's handled here rather than in
+        // the shared builder.
         let wineBin = URL(filePath: winePath).deletingLastPathComponent().path
         if let existingPath = environment["PATH"], !existingPath.isEmpty {
             environment["PATH"] = "\(wineBin):\(existingPath)"
@@ -201,21 +251,60 @@ struct WineProgramRunner: ProgramRunning {
             environment["PATH"] = wineBin
         }
 
-        if gameMode {
-            for (key, value) in Self.gameModeEnvironment {
-                environment[key] = value
-            }
+        for (key, value) in Self.wineEnvironment(
+            prefixPath: prefixURL.path, winePath: winePath, gameMode: gameMode,
+            graphicsBackend: graphicsBackend)
+        {
+            environment[key] = value
         }
         return environment
     }
 
+    /// The Wine-specific variables BottleLite layers on top of the inherited
+    /// process environment for a launch: the prefix, debug muting, the chosen
+    /// graphics backend's DLL overrides (so `winemenubuilder` stays off and the
+    /// D3DMetal/DXVK overrides are applied), Game Mode tuning, and the backend's
+    /// library search paths. Shared by the in-app runner and the generated
+    /// `.app` launchers so a program behaves identically however it's started.
+    /// (PATH is intentionally excluded — it must prepend to the inherited value.)
+    static func wineEnvironment(
+        prefixPath: String, winePath: String, gameMode: Bool, graphicsBackend: GraphicsBackend
+    ) -> [String: String] {
+        var env: [String: String] = [
+            "WINEPREFIX": prefixPath,
+            "WINEDEBUG": "-all",
+            "WINEDLLOVERRIDES": dllOverrides(for: graphicsBackend),
+        ]
+        if gameMode {
+            for (key, value) in gameModeEnvironment {
+                env[key] = value
+            }
+            // WINE_LARGE_ADDRESS_AWARE lets a 32-bit process allocate above 2GB.
+            // On a Game Porting Toolkit (Wow64) Wine that overflows Wine's
+            // page-protection table and crashes 32-bit games with an
+            // `alloc_pages_vprot` assertion (virtual.c). It's a no-op for 64-bit
+            // apps anyway, so only apply it on a non-GPTK Wine where it's safe
+            // and actually helps older 32-bit titles.
+            if !GamingRuntime.isGPTKWine(winePath) {
+                env["WINE_LARGE_ADDRESS_AWARE"] = "1"
+            }
+        }
+        // Point Wine at MoltenVK / GPTK so the selected graphics backend can
+        // actually use them (no-op for the built-in renderer).
+        for (key, value) in GamingRuntime.environment(for: graphicsBackend) {
+            env[key] = value
+        }
+        return env
+    }
+
     /// Performance-oriented environment applied on top of the base launch
-    /// environment when Game Mode is enabled. These are honored by Wine builds
-    /// on macOS (msync/esync, large-address-aware) and by the Apple Metal HUD.
+    /// environment when Game Mode is enabled. Honored by Wine builds on macOS
+    /// (msync/esync) and the Apple Metal HUD. `WINE_LARGE_ADDRESS_AWARE` is
+    /// deliberately *not* here — it's applied conditionally in `wineEnvironment`
+    /// because it crashes 32-bit games on a GPTK Wine.
     static let gameModeEnvironment: [String: String] = [
         "WINEMSYNC": "1",
         "WINEESYNC": "1",
-        "WINE_LARGE_ADDRESS_AWARE": "1",
         // Apple's Metal performance HUD (FPS / frame time overlay).
         "MTL_HUD_ENABLED": "1",
     ]

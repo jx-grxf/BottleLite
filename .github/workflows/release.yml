@@ -276,3 +276,17 @@ jobs:
               --notes "Moving Sparkle beta appcast feed. Install beta builds from versioned prereleases." \
               --prerelease
           fi
+
+      - name: Trigger website rebuild
+        env:
+          WEBSITE_DEPLOY_HOOK_URL: ${{ secrets.WEBSITE_DEPLOY_HOOK_URL }}
+          WEBSITE_DEPLOY_HOOK: ${{ secrets.WEBSITE_DEPLOY_HOOK }}
+        run: |
+          set -euo pipefail
+          deploy_hook="${WEBSITE_DEPLOY_HOOK_URL:-${WEBSITE_DEPLOY_HOOK:-}}"
+          if [[ -z "$deploy_hook" ]]; then
+            echo "WEBSITE_DEPLOY_HOOK_URL secret is missing; skipping website rebuild."
+            exit 0
+          fi
+
+          curl --fail --silent --show-error --request POST "$deploy_hook"

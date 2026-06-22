@@ -6,3 +6,6 @@ dist/
 xcuserdata/
 *.xcuserstate
 *.swp
+
+# Local knowledge vault (not versioned)
+Brain/

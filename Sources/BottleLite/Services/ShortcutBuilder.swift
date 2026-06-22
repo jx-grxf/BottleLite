@@ -56,7 +56,8 @@ enum ShortcutBuilder {
         try fileManager.createDirectory(at: macos, withIntermediateDirectories: true)
 
         let scriptURL = macos.appending(path: "launch")
-        let script = launchScript(program: program, prefixPath: prefixURL.path, winePath: winePath)
+        let script = launchScript(
+            program: program, bottle: bottle, prefixPath: prefixURL.path, winePath: winePath)
         try script.write(to: scriptURL, atomically: true, encoding: .utf8)
         try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: scriptURL.path)
 
@@ -102,19 +103,33 @@ enum ShortcutBuilder {
 
     // MARK: - Pure helpers (exposed for testing)
 
-    /// The shell script that becomes the bundle's executable. Disables
-    /// `winemenubuilder` so launching the program never re-litters the Desktop.
-    static func launchScript(program: WindowsProgram, prefixPath: String, winePath: String) -> String {
+    /// The shell script that becomes the bundle's executable. Uses the exact same
+    /// environment (graphics-backend DLL overrides, Game Mode, library paths) and
+    /// injected arguments as the in-app runner, so a program launched from its
+    /// `.app` shortcut behaves identically to launching it inside BottleLite.
+    static func launchScript(
+        program: WindowsProgram, bottle: Bottle, prefixPath: String, winePath: String
+    ) -> String {
         let wineBin = URL(filePath: winePath).deletingLastPathComponent().path
-        let workingDir = WineProgramRunner.workingDirectory(for: URL(filePath: program.path)).path
-        let arguments = WineProgramRunner.parseArguments(program.arguments)
+        let executableURL = URL(filePath: program.path)
+        let workingDir = WineProgramRunner.workingDirectory(for: executableURL).path
+        let arguments =
+            WineProgramRunner.parseArguments(program.arguments)
+            + WineProgramRunner.injectedArguments(
+                forExecutableAt: executableURL, userArguments: program.arguments)
         let command = ([winePath, program.path] + arguments).map(shellEscaped).joined(separator: " ")
+
+        let env = WineProgramRunner.wineEnvironment(
+            prefixPath: prefixPath, winePath: winePath, gameMode: bottle.gameMode,
+            graphicsBackend: bottle.graphicsBackend)
+        let exports =
+            env.sorted { $0.key < $1.key }
+            .map { "export \($0.key)=\(shellEscaped($0.value))" }
+            .joined(separator: "\n")
 
         return """
             #!/bin/zsh
-            export WINEPREFIX=\(shellEscaped(prefixPath))
-            export WINEDEBUG=-all
-            export WINEDLLOVERRIDES=\(shellEscaped("winemenubuilder.exe=d"))
+            \(exports)
             export PATH=\(shellEscaped(wineBin)):$PATH
             cd \(shellEscaped(workingDir))
             exec \(command)

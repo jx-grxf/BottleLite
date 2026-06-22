@@ -28,9 +28,26 @@ struct GraphicsBackendTests {
         #expect(bottle.graphicsBackend == .wineD3D)
     }
 
+    @Test func builtInBackendNeedsNoGamingEnvironment() {
+        #expect(GamingRuntime.environment(for: .wineD3D).isEmpty)
+    }
+
     @Test func steamTemplateUsesGamingDefaults() {
         #expect(BottleType.steamGame.gameMode == true)
-        #expect(BottleType.steamGame.graphicsBackend == .dxvk)
+        // The Steam template uses the fastest accelerated backend available:
+        // D3DMetal when a Game Porting Toolkit Wine is present, else DXVK. Never
+        // the slow built-in renderer.
+        let expected: GraphicsBackend = GraphicsBackend.isD3DMetalAvailable ? .d3dMetal : .dxvk
+        #expect(BottleType.steamGame.graphicsBackend == expected)
+        #expect(BottleType.steamGame.graphicsBackend != .wineD3D)
         #expect(BottleType.windowsApp.graphicsBackend == .wineD3D)
+    }
+
+    @Test func dxvkIsFlaggedIncompatibleWithGPTKWine() {
+        #expect(
+            GamingRuntime.isGPTKWine(
+                "/Applications/Game Porting Toolkit.app/Contents/Resources/wine/bin/wine64"))
+        #expect(GamingRuntime.isGPTKWine("/opt/homebrew/bin/wine64"))
+        #expect(!GamingRuntime.isGPTKWine("/opt/homebrew/bin/wine"))
     }
 }

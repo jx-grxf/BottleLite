@@ -34,7 +34,7 @@ enum BottleType: String, CaseIterable, Identifiable {
     var detail: String {
         switch self {
         case .windowsApp: "A regular Windows application."
-        case .steamGame: "Tuned for gaming: Game Mode on, DXVK graphics."
+        case .steamGame: "Tuned for gaming: Game Mode on, fastest available graphics."
         case .oldGame: "Older DirectX 9 titles, with Game Mode on."
         case .consoleTool: "A command-line Windows tool."
         case .advanced: "A clean bottle you configure yourself."
@@ -60,7 +60,11 @@ enum BottleType: String, CaseIterable, Identifiable {
 
     var graphicsBackend: GraphicsBackend {
         switch self {
-        case .steamGame: .dxvk
+        case .steamGame:
+            // With a Game Porting Toolkit Wine (x86), DXVK can't load the arm64
+            // MoltenVK, so D3DMetal is the only working accelerated backend.
+            // Fall back to DXVK when only a native Wine + MoltenVK is present.
+            GraphicsBackend.isD3DMetalAvailable ? .d3dMetal : .dxvk
         case .windowsApp, .oldGame, .consoleTool, .advanced: .wineD3D
         }
     }
