@@ -11,7 +11,7 @@ let package = Package(
         .executable(name: "BottleLite", targets: ["BottleLite"])
     ],
     dependencies: [
-        .package(url: "https://github.com/sparkle-project/Sparkle", exact: "2.9.3")
+        .package(url: "https://github.com/sparkle-project/Sparkle", exact: "2.9.4")
     ],
     targets: [
         .executableTarget(
